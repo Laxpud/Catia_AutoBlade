@@ -110,10 +110,9 @@ def create_airfoil(part, points: list):
     except Exception as e:
         raise Exception(f"[ERROR] Error creating airfoil cloud: {e}") from e
 
-def read_section_parameters():
+def read_section_parameters(csv_path: str):
     # 保留原逻辑，无 CATIA 依赖
     try:
-        csv_path = os.path.join(os.path.dirname(__file__), "input", "section_params.csv")
         sections = []
         with open(csv_path, 'r', encoding='utf-8-sig') as f:
             reader = csv.reader(f)
@@ -234,7 +233,7 @@ def create_section_le_te_points(part, gs_blade, le_te_coords, section, le_points
     except Exception as e:
         raise Exception(f"[ERROR] Error creating LE/TE points for section {section['idx']}: {e}") from e
 
-def create_blade_geometry(part, airfoil, le_te_coords, is_sharp):
+def create_blade_geometry(part, airfoil, le_te_coords, is_sharp, csv_path: str):
     try:
         hybrid_bodies = part.HybridBodies
         gs_blade = hybrid_bodies.Add()
@@ -242,7 +241,7 @@ def create_blade_geometry(part, airfoil, le_te_coords, is_sharp):
 
         hsf = part.HybridShapeFactory
         airfoil_ref = part.CreateReferenceFromObject(airfoil)
-        section_params = read_section_parameters()
+        section_params = read_section_parameters(csv_path)
 
         # 创建原点和X轴
         origin_point = hsf.AddNewPointCoord(0, 0, 0)
@@ -373,17 +372,18 @@ def create_blade_solid(part, surface):
     except Exception as e:
         raise Exception(f"[ERROR] Error creating blade solid: {e}") from e
 
-def save_part(part_document):
+def save_part(part_document, output_dir, output_name="blade_part"):
     try:
-        dir_path = os.path.dirname(__file__)
-
-        catpart_path = os.path.join(dir_path, "blade_part.CATPart")
+        os.makedirs(output_dir, exist_ok=True)
+        output_absdir = os.path.abspath(output_dir) # 必须使用绝对路径
+        # 保存CATPart文件
+        catpart_path = os.path.join(output_absdir, f"{output_name}.CATPart")
         if os.path.exists(catpart_path):
             os.remove(catpart_path)
         part_document.SaveAs(catpart_path)
         print(f"[INFO] Part saved to: {catpart_path}")
-
-        stp_path = os.path.join(dir_path, "blade_part.stp")
+        # 导出STP文件
+        stp_path = os.path.join(output_absdir, f"{output_name}.stp")
         if os.path.exists(stp_path):
             os.remove(stp_path)
         part_document.ExportData(stp_path, "stp")
@@ -409,39 +409,41 @@ def hide_all_except_blade_solid(part_document, gs_airfoil, gs_blade_geometry, gs
     except Exception as e:
         print(f"[WARNING] Error hiding objects: {e}")
 
-if __name__ == "__main__":
-    # 核心流程：创建Part → 读取翼型 → 创建翼型 → 叶片几何 → 曲面 → 实体 → 保存
+def create_single_blade(airfoil_filename, section_params_filename, output_base_dir="output"):
     caa, part_document, part = create_part()
 
-    # 读取翼型CSV
-    airfoil_file = "airfoil_sc1095.csv"
-    csv_path = os.path.join(os.path.dirname(__file__), "input", airfoil_file)
-    points = read_airfoil_csv(csv_path)
-
-    # 创建基础翼型
+    airfoil_path = os.path.join("input", airfoil_filename)
+    points = read_airfoil_csv(airfoil_path)
     gs_airfoil, airfoil, is_sharp, le_te_coords = create_airfoil(part, points)
 
-    # 创建叶片几何
-    gs_blade_geometry, section_splines, le_spline, te_upper_spline, te_lower_spline, le_points = create_blade_geometry(part, airfoil, le_te_coords, is_sharp)
+    section_params_path = os.path.join("input", "section_params", section_params_filename)
+    gs_blade_geometry, section_splines, le_spline, te_upper_spline, te_lower_spline, le_points = create_blade_geometry(
+        part, airfoil, le_te_coords, is_sharp, section_params_path
+    )
 
-    # 创建叶片曲面
-    gs_blade_surface, blade_surface = create_blade_surface(part, section_splines, le_spline, te_upper_spline, te_lower_spline, le_points, is_sharp)
+    gs_blade_surface, blade_surface = create_blade_surface(
+        part, section_splines, le_spline, te_upper_spline, te_lower_spline, le_points, is_sharp
+    )
 
-    # 创建叶片实体
     blade_solid = create_blade_solid(part, blade_surface)
-
     hide_all_except_blade_solid(part_document, gs_airfoil, gs_blade_geometry, gs_blade_surface)
 
-    # 强制更新
     try:
         part.Update()
     except Exception as e:
         print(f"[WARNING] Part update failed: {e}")
 
-    # 保存文件
-    save_part(part_document)
+    airfoil_name = os.path.splitext(airfoil_filename)[0].replace("airfoil_", "")
+    section_name = os.path.splitext(section_params_filename)[0].replace("section_params_", "")
+    output_name = f"blade_{airfoil_name}_sec{section_name}"
+    output_dir = os.path.join(output_base_dir, f"{airfoil_name}", f"sec{section_name}")
 
-    # 退出 CATIA（可选，也可保留打开）
+    save_part(part_document, output_dir, output_name)
+
     caa.Quit()
-    pythoncom.CoUninitialize()  # 释放 COM
-    print("[INFO] CAA closed.")
+    pythoncom.CoUninitialize()
+
+    return output_name, output_dir
+
+if __name__ == "__main__":
+    create_single_blade("airfoil_sc1095.csv", "section_params_1.csv")

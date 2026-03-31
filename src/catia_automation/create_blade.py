@@ -409,10 +409,10 @@ def hide_all_except_blade_solid(part_document, gs_airfoil, gs_blade_geometry, gs
     except Exception as e:
         print(f"[WARNING] Error hiding objects: {e}")
 
-def create_single_blade(airfoil_filename, section_params_filename, output_base_dir="output"):
+def create_single_blade(airfoil_filename, section_params_filename, output_dir="output", output_name="blade"):
     caa, part_document, part = create_part()
 
-    airfoil_path = os.path.join("input", airfoil_filename)
+    airfoil_path = os.path.join("input", "airfoils", airfoil_filename)
     points = read_airfoil_csv(airfoil_path)
     gs_airfoil, airfoil, is_sharp, le_te_coords = create_airfoil(part, points)
 
@@ -433,11 +433,6 @@ def create_single_blade(airfoil_filename, section_params_filename, output_base_d
     except Exception as e:
         print(f"[WARNING] Part update failed: {e}")
 
-    airfoil_name = os.path.splitext(airfoil_filename)[0].replace("airfoil_", "")
-    section_name = os.path.splitext(section_params_filename)[0].replace("section_params_", "")
-    output_name = f"blade_{airfoil_name}_sec{section_name}"
-    output_dir = os.path.join(output_base_dir, f"{airfoil_name}", f"sec{section_name}")
-
     save_part(part_document, output_dir, output_name)
 
     caa.Quit()
@@ -446,4 +441,4 @@ def create_single_blade(airfoil_filename, section_params_filename, output_base_d
     return output_name, output_dir
 
 if __name__ == "__main__":
-    create_single_blade("airfoil_sc1095.csv", "section_params_1.csv")
+    create_single_blade("sc1095.csv", "section_params-1.csv")

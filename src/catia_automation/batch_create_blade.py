@@ -2,17 +2,16 @@ import os
 import sys
 import argparse
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from create_blade import create_single_blade
+from .create_blade import create_single_blade
 
 def get_available_files(input_dir="input"):
     airfoil_files = []
     section_params_files = []
 
-    airfoil_dir = os.path.join(input_dir)
+    airfoil_dir = os.path.join(input_dir, "airfoils")
     if os.path.exists(airfoil_dir):
         for f in os.listdir(airfoil_dir):
-            if f.startswith("airfoil_") and f.endswith(".csv"):
+            if f.endswith(".csv"):
                 airfoil_files.append(f)
 
     section_params_dir = os.path.join(input_dir, "section_params")
@@ -30,7 +29,7 @@ def batch_create_blades(airfoil_files=None, section_params_files=None, output_ba
     if section_params_files is None:
         _, section_params_files = get_available_files()
 
-    airfoil_files = [f for f in airfoil_files if f.startswith("airfoil_") and f.endswith(".csv")]
+    airfoil_files = [f for f in airfoil_files if f.endswith(".csv")]
 
     print(f"[INFO] Batch processing: {len(airfoil_files)} airfoil(s) x {len(section_params_files)} section param(s) = {len(airfoil_files) * len(section_params_files)} blade(s)")
 
@@ -40,7 +39,11 @@ def batch_create_blades(airfoil_files=None, section_params_files=None, output_ba
             try:
                 print(f"\n{'='*60}")
                 print(f"[INFO] Creating blade: airfoil={airfoil_file}, section={section_file}")
-                output_name, output_dir = create_single_blade(airfoil_file, section_file, output_base_dir)
+                airfoil_name = os.path.splitext(airfoil_file)[0]
+                param_file_idx = os.path.splitext(section_file)[0].replace("section_params-", "")
+                output_name = f"{airfoil_name}_blade-{param_file_idx}"
+                output_dir = os.path.join(output_base_dir, f"{airfoil_name}")
+                create_single_blade(airfoil_file, section_file, output_dir, output_name)
                 results.append({"status": "success", "airfoil": airfoil_file, "section": section_file, "output": output_dir})
                 print(f"[SUCCESS] Blade created: {output_name}")
             except Exception as e:
@@ -53,7 +56,7 @@ def batch_create_blades(airfoil_files=None, section_params_files=None, output_ba
 
 def main():
     parser = argparse.ArgumentParser(description="Batch create blade models in CATIA")
-    parser.add_argument("--airfoil", type=str, default=None, help="Specific airfoil CSV file (e.g., airfoil_sc1095.csv)")
+    parser.add_argument("--airfoil", type=str, default=None, help="Specific airfoil CSV file (e.g., sc1095.csv)")
     parser.add_argument("--section", type=str, default=None, help="Specific section params CSV file (e.g., section_params_1.csv)")
     parser.add_argument("--list", action="store_true", help="List available airfoil and section params files")
     parser.add_argument("--output", type=str, default="output", help="Output base directory")

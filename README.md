@@ -1,12 +1,13 @@
 # Catia_AutoBlade
 
-CATIA 叶轮叶片自动化建模工具。通过读取翼型数据 CSV 和截面参数 CSV，在 CATIA 中自动创建三维叶片模型。
+CATIA 桨叶自动化建模工具。通过读取翼型数据 CSV 和截面参数 CSV，在 CATIA 中自动创建三维桨叶模型。
 
 ## 功能特性
 
 - 读取翼型点云数据（CSV 格式）并生成样条曲线
-- 支持叶片截面参数配置（缩放、位移、旋转）
-- 批量创建多个叶片模型
+- 支持桨叶截面参数配置（缩放、位移、旋转）
+- 支持尖后缘翼型和钝后缘翼型
+- 批量创建多个桨叶模型
 - 基于 pywin32 与 CATIA COM 接口通信
 
 ## 项目结构
@@ -31,13 +32,15 @@ Catia_AutoBlade/
 
 ## 安装依赖
 
+使用 uv 管理依赖，推荐使用以下命令安装依赖：
+
 ```bash
-pip install -e .
+uv sync
 ```
 
 ## 使用方法
 
-### 单叶片创建
+### 单桨叶创建
 
 ```bash
 catblade --airfoil sc1095.csv --section section_params-1.csv --output ./output
@@ -49,7 +52,7 @@ catblade --airfoil sc1095.csv --section section_params-1.csv --output ./output
 # 列出所有可用的翼型和截面参数文件
 catblade-batch --list
 
-# 批量创建所有组合的叶片
+# 批量创建所有组合的桨叶
 catblade-batch --output ./output
 
 # 指定特定文件
@@ -57,6 +60,11 @@ catblade-batch --airfoil sc1095.csv --section section_params-1.csv
 ```
 
 ### 输入文件格式
+
+要求：
+- 翼型前缘点为原点，弦长为 1，并置于 Y-Z 平面上
+- 翼型点云顺序从后缘（上端）开始，沿着上表面经过前缘，再沿着下表面返回后缘（下端）
+- 生成的 3d 模型以 x 轴作为基准 1/4 弦线，x 轴指向翼尖，翼型前缘指向 y 轴正向
 
 **翼型数据 CSV** (`input/airfoils/`):
 

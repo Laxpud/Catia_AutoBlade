@@ -15,48 +15,108 @@ CATIA 桨叶自动化建模工具。通过读取翼型数据 CSV 和截面参数
 ```
 Catia_AutoBlade/
 ├── input/
-│   ├── airfoils/              # 翼型数据 CSV
-│   │   ├── sc1095.csv
-│   │   ├── sc1095_sharp.csv
-│   │   └── sd7032_sharp.csv
-│   └── section_params/        # 截面参数 CSV
-│       └── section_params-*.csv
+│   ├── airfoils/                 # 翼型数据 CSV
+│   └── section_params/           # 截面参数 CSV
 ├── src/catia_autoblade/
-│   ├── __init__.py
-│   ├── create_blade.py        # 单叶片创建逻辑
-│   └── batch_create_blade.py  # 批量创建逻辑
-├── output/                    # 生成的文件输出目录
+│   ├── cli.py                    # CLI 入口（typer）
+│   ├── core/                     # 核心建模逻辑
+│   │   ├── create_blade.py       # 单叶片创建
+│   │   └── batch.py              # 批量创建
+│   ├── commands/                 # CLI 命令实现
+│   ├── interactive/              # 交互式提示
+│   ├── utils/                    # 工具函数
+│   └── config/                   # 配置管理
+├── output/                       # 生成的文件输出目录
 ├── pyproject.toml
 └── README.md
 ```
 
-## 安装依赖
+## 安装
 
-使用 uv 管理依赖，推荐使用以下命令安装依赖：
+### 环境要求
+
+- Windows 系统
+- Python >= 3.14
+- CATIA v5（本人环境为 CATIA P3 V5-6R2020）
+
+### 使用 uv 安装
+
+推荐使用 [uv](https://docs.astral.sh/uv/) 管理 Python 环境和依赖。
 
 ```bash
+# 1. 克隆仓库
+git clone https://github.com/Laxpud/catia-autoblade.git
+cd catia-autoblade
+
+# 2. 创建虚拟环境并安装依赖
 uv sync
+
+# 3. 以可编辑模式安装项目（使 CLI 命令可用）
+uv pip install -e .
 ```
+
+安装后可用的 CLI 命令：
+
+| 命令 | 说明 |
+|------|------|
+| `autoblade` | 主入口，包含所有子命令 |
+| `autoblade-create` | 快捷方式：创建单个桨叶 |
+| `autoblade-batch` | 快捷方式：批量创建桨叶 |
 
 ## 使用方法
 
-### 单桨叶创建
+### 列出可用文件
 
 ```bash
-catblade --airfoil sc1095.csv --section section_params-1.csv --output ./output
+autoblade batch --list
+```
+
+### 创建单个桨叶
+
+```bash
+# 指定翼型和截面参数
+autoblade create --airfoil sc1095.csv --section section_params-1.csv
+
+# 指定输出目录
+autoblade create --airfoil sc1095.csv --section section_params-1.csv --output ./output
+
+# 交互模式（手动选择文件）
+autoblade create --interactive
 ```
 
 ### 批量创建
 
 ```bash
 # 列出所有可用的翼型和截面参数文件
-catblade-batch --list
+autoblade batch --list
 
 # 批量创建所有组合的桨叶
-catblade-batch --output ./output
+autoblade batch
 
-# 指定特定文件
-catblade-batch --airfoil sc1095.csv --section section_params-1.csv
+# 指定某个翼型，使用所有截面参数
+autoblade batch --airfoil sc1095.csv
+
+# 指定翼型和截面参数
+autoblade batch --airfoil sc1095.csv --section section_params-1.csv
+
+# 交互模式（手动选择翼型和截面）
+autoblade batch --interactive
+
+# 指定输出目录
+autoblade batch --airfoil sc1095.csv --output ./output
+```
+
+### 配置管理
+
+```bash
+# 查看当前配置
+autoblade config show
+
+# 设置配置项
+autoblade config set --key <key> --value <value>
+
+# 重置为默认值
+autoblade config reset
 ```
 
 ### 输入文件格式
@@ -83,13 +143,6 @@ idx,scale/mm,translate_x/mm,translate_y/mm,translate_z/mm,rotate/deg
 2,80.28,200.0,0.0,0.0,13.9
 ...
 ```
-
-## 环境要求
-
-- Python >= 3.10
-- Windows 系统
-- CATIA v5 （本人环境为 CATIA P3 V5-6R2020）
-- pywin32
 
 ## License
 

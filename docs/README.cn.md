@@ -10,7 +10,7 @@ CATIA AutoBlade 是一个 Windows 命令行工具，用于根据翼型点云和�
 
 当前实现要求一片叶片的所有截面使用同一个翼型。较新输入数据中出现的可选 `airfoil` 列尚未用于逐截面选择翼型。
 
-当前里程碑是在扩展几何模型之前，使现有单翼型流程可重复、可配置并具备可靠的资源清理。活动任务和验收条件见 [TODO.md](../TODO.md)。
+稳定单翼型建模里程碑已经完成。当前里程碑将扩展几何模型，使叶片不同截面能够选择不同翼型。活动任务和验收条件见 [TODO.md](../TODO.md)。
 
 ## 功能范围
 
@@ -80,7 +80,17 @@ uv run autoblade-batch --airfoil sc1095.csv
 - [架构说明](architecture.md)
 - [输入数据格式](input-formats.md)
 - [运行时配置](configuration.md)
+- [自动化测试](testing.md)
 - [活动任务与验收条件](../TODO.md)
+
+## 开发检查
+
+自动化测试使用 COM fake，不要求安装或运行 CATIA：
+
+```powershell
+uv run --extra dev pytest -q
+uv run --extra dev ruff check src tests
+```
 
 ## 许可证
 

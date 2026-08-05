@@ -10,7 +10,7 @@ The project is an early working prototype. The single-airfoil workflow has been 
 
 The current implementation uses one airfoil for every section of a blade. Per-section airfoil selection, including the optional `airfoil` column found in newer input data, is not supported yet.
 
-The current milestone is to make the existing single-airfoil workflow repeatable, configurable, and safe before extending the geometry model. See [TODO.md](TODO.md) for the active acceptance checklist.
+The stable single-airfoil milestone is complete. The current milestone extends the geometry model to select different airfoils across blade sections. See [TODO.md](TODO.md) for the active acceptance checklist.
 
 ## Scope
 
@@ -80,7 +80,17 @@ By default, airfoil CSV files belong in `input/airfoils/` and section parameter 
 - [Architecture](docs/architecture.md)
 - [Input data formats](docs/input-formats.md)
 - [Runtime configuration](docs/configuration.md)
+- [Automated testing](docs/testing.md)
 - [Active work and acceptance criteria](TODO.md)
+
+## Development checks
+
+The automated tests use COM fakes and do not require CATIA to be installed or running:
+
+```powershell
+uv run --extra dev pytest -q
+uv run --extra dev ruff check src tests
+```
 
 ## License
 

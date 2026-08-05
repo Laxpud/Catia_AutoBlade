@@ -2,7 +2,7 @@
 
 本文件记录当前里程碑和可验收的后续工作。长期技术说明放在 `docs/`，已经完成且需要保留的计划可在未来归档到 `docs/archive/`。
 
-## 当前里程碑：稳定单翼型建模链路
+## 已完成里程碑：稳定单翼型建模链路
 
 - [x] 建立英文项目入口、中文翻译、技术文档索引和活动任务清单。
 - [x] 修复独立 CLI 入口 `autoblade-create` 和 `autoblade-batch`。
@@ -25,11 +25,11 @@
   - 修复记录（2026-08-05）：每个截面先从实际曲线生成前缘方向的 `Extremum`，再以理论前缘作为 `Near` 选择器，从多点极值中取得单一曲线点。300 点、1000 点和 260 点钝后缘案例的 26 个前缘点到所属截面距离均为 `0 mm`，且均完成 Loft 和实体封闭。
   - 手工检查：测试输入为 `input/airfoils/AIRFOIL1_sharp_1000.csv`；原始成功截面、Loft 失败现场和修复后的完整实体分别保存在 `output/repro/AIRFOIL1_sharp_1000_sections.CATPart`、`output/repro/AIRFOIL1_sharp_1000_loft_failure.CATPart` 和 `output/repro/AIRFOIL1_sharp_1000_curve_le_fixed.CATPart`。
   - 验收：代表性约 1000 点翼型能够稳定完成样条、Loft 和实体封闭，且现有低密度翼型的几何与输出不发生非预期变化。
-- [ ] 建立不依赖 CATIA 的自动化测试基线。
+- [x] 建立不依赖 CATIA 的自动化测试基线。
   - 验收：覆盖 CSV 解析、坐标变换、文件扫描、输出命名和 CLI 参数解析。
   - 验收：测试通过 mock 隔离 COM 接口，并能在未安装 CATIA 的环境执行。
 
-## 下一里程碑：支持展向多翼型
+## 当前里程碑：支持展向多翼型
 
 - [ ] 确认 `section_params.csv` 中 `airfoil` 列的正式数据契约。
   - 待确认：该列是否要求每个截面都填写，以及翼型切换处是否需要额外的连续性规则。

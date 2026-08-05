@@ -19,6 +19,7 @@ Typer CLI
 
 - `catia_autoblade.cli`：注册 `create`、`batch`、`list` 和 `config` 子命令。
 - `catia_autoblade.commands`：把 CLI 输入转换为核心函数参数，不应包含 CATIA 几何规则。
+- `catia_autoblade.core.catia_session`：独占 CATIA 实例并管理文档与 COM 生命周期。
 - `catia_autoblade.core.create_blade`：单叶片建模主流程和 CATIA COM 操作。
 - `catia_autoblade.core.batch`：组合翼型与参数文件，逐个调用单叶片流程。
 - `catia_autoblade.config`：配置模型、TOML 持久化及运行时绝对路径解析。
@@ -26,7 +27,7 @@ Typer CLI
 
 ## 单叶片建模流程
 
-1. 初始化 COM，连接或启动 `CATIA.Application`，创建空 `Part` 文档。
+1. 初始化 COM，通过 `DispatchEx` 启动当前任务独占的隐藏 `CATIA.Application`，创建空 `Part` 文档。
 2. 读取以 m 表示、弦长为 1 m 的基准翼型点，将弦向坐标反向并平移，使 X 轴成为 1/4 弦线。
 3. 在 `airfoil` 几何集中创建点和样条；钝后缘额外增加封口直线和 Join。
 4. 读取所有截面参数，对同一基准翼型依次执行绕 X 轴旋转、相对原点缩放和三维平移。
@@ -34,13 +35,26 @@ Typer CLI
 6. 以变换后的截面为 Loft 截面，以前缘和后缘样条为导引线生成叶片曲面。
 7. 使用 `CloseSurface` 将封闭曲面转换为实体。
 8. 隐藏辅助几何，保存 `.CATPart`，并导出 `.stp`。
-9. 退出 CATIA 并释放 COM。
+9. 在 `finally` 语义下关闭文档、退出 CATIA、回收动态代理并执行 `CoUninitialize`。
+
+## CATIA 与 COM 生命周期
+
+每个单叶片任务使用一个 `CatiaSession` 上下文，并拥有独立 CATIA 实例。程序不复用或退出用户已经打开的 CATIA 会话。会话进入时先对当前线程执行 `CoInitialize`，随后创建应用和 `Part` 文档；任一初始化步骤失败都会回滚已经创建的资源。
+
+建模、更新、保存和 STEP 导出全部位于上下文范围内。临时几何 COM 代理被限制在内部建模函数的局部作用域中，因此它们会先离开作用域；会话随后按以下顺序清理：
+
+1. 释放 `Part` 代理并关闭文档；
+2. 调用当前会话所拥有应用的 `Quit`；
+3. 回收残留 Python COM 代理；
+4. 调用与本次初始化配对的 `CoUninitialize`。
+
+如果建模过程中已有主异常，清理错误会附加到该异常而不会遮蔽根因；如果建模成功但清理失败，则单独抛出 `CatiaCleanupError`。批处理的每个组合都有自己的会话，某一组合失败并完成清理后才会继续下一组合。
 
 ## 批处理模型
 
 批处理对选中的翼型文件和截面参数文件执行笛卡尔积。每个组合都会重新进入完整的单叶片流程，并输出到配置输出根目录下以翼型名称命名的子目录。单模型和批处理共享 `defaults.output_name_template`。
 
-当前没有共享 CATIA 会话、失败重试、事务式输出或断点续跑。某一组合失败会记录失败结果，然后继续处理其他组合。
+当前没有共享 CATIA 会话、失败重试、事务式输出或断点续跑。某一组合失败会先释放其独立 CATIA 会话、记录失败结果，然后继续处理其他组合。
 
 ## 几何约束
 
@@ -63,5 +77,4 @@ Typer CLI
 - 一片叶片只能复用一个基准翼型，截面参数中的 `airfoil` 扩展列会被忽略。
 - 尖后缘通过首尾坐标精确相等判断，没有浮点容差。
 - CSV 解析主要依赖列位置，缺少启动 CATIA 前的完整 schema 校验。
-- COM 清理只位于成功路径，异常可能遗留隐藏的 CATIA 进程。
 - 建模核心直接依赖动态 COM 对象，尚未形成便于单元测试的适配器边界。

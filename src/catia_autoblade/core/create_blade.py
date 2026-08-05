@@ -3,13 +3,10 @@ import csv
 import math
 from pathlib import Path
 
-import win32com.client
-import pythoncom
-
 from ..config.manager import ConfigManager
 from ..utils.output_naming import build_output_name
+from .catia_session import CatiaSession
 
-CATPart = "Part"
 CATHybridShapePointCoord = 0
 CATConstraintMode = 1
 CAT_GSM_MAX = 1
@@ -37,23 +34,6 @@ def meters_to_catia_mm(value_m):
 def point_m_to_catia_mm(point_m):
     """将领域坐标点从 m 换算为 CATIA Automation 使用的 mm 三元组。"""
     return tuple(meters_to_catia_mm(coordinate) for coordinate in point_m)
-
-
-def create_part():
-    try:
-        pythoncom.CoInitialize()
-        caa = win32com.client.Dispatch("CATIA.Application")
-        caa.Visible = False
-        print("[INFO] Start CAA Automation via COM")
-
-        documents = caa.Documents
-        part_document = documents.Add(CATPart)
-        part = part_document.Part
-        print("[INFO] Blank part created successfully.")
-
-        return caa, part_document, part
-    except Exception as e:
-        raise Exception(f"[ERROR] Error creating part: {e}") from e
 
 
 def read_airfoil_csv(csv_path: str):
@@ -540,8 +520,9 @@ def create_single_blade(
     airfoil_dir=None,
     section_params_dir=None,
     output_name_template=None,
+    session_factory=CatiaSession,
 ):
-    """使用显式运行参数建模，缺省项统一回退到 ``ConfigManager``。"""
+    """创建单个叶片，并在所有退出路径释放文档、CATIA 和 COM 状态。"""
     runtime_config = None
     needs_runtime_config = (
         airfoil_dir is None
@@ -570,23 +551,67 @@ def create_single_blade(
             author=author,
         )
 
-    caa, part_document, part = create_part()
+    # 会话上下文覆盖读取、建模、更新、保存和导出的完整范围；其中任何一步
+    # 抛出异常，__exit__ 都会先完成资源清理，再把原始异常交给上层处理。
+    with session_factory() as session:
+        _build_and_save_blade(
+            session.part_document,
+            session.part,
+            Path(airfoil_dir) / airfoil_filename,
+            Path(section_params_dir) / section_params_filename,
+            output_dir,
+            output_name,
+        )
 
-    airfoil_path = Path(airfoil_dir) / airfoil_filename
+    return output_name, output_dir
+
+
+def _build_and_save_blade(
+    part_document,
+    part,
+    airfoil_path,
+    section_params_path,
+    output_dir,
+    output_name,
+):
+    """在独立作用域内持有临时 CATIA 几何代理并完成建模与导出。"""
+    # 该函数返回或因异常退栈后，几何特征代理会先于 CatiaSession.__exit__
+    # 离开局部作用域，避免残留 COM 引用延迟隐藏 CATIA 进程退出。
     points = read_airfoil_csv(airfoil_path)
     gs_airfoil, airfoil, is_sharp, te_coords = create_airfoil(part, points)
 
-    section_params_path = Path(section_params_dir) / section_params_filename
-    gs_blade_geometry, section_splines, le_spline, te_upper_spline, te_lower_spline, le_points = create_blade_geometry(
-        part, airfoil, te_coords, is_sharp, section_params_path
+    (
+        gs_blade_geometry,
+        section_splines,
+        le_spline,
+        te_upper_spline,
+        te_lower_spline,
+        le_points,
+    ) = create_blade_geometry(
+        part,
+        airfoil,
+        te_coords,
+        is_sharp,
+        section_params_path,
     )
 
     gs_blade_surface, blade_surface = create_blade_surface(
-        part, section_splines, le_spline, te_upper_spline, te_lower_spline, le_points, is_sharp
+        part,
+        section_splines,
+        le_spline,
+        te_upper_spline,
+        te_lower_spline,
+        le_points,
+        is_sharp,
     )
 
     create_blade_solid(part, blade_surface)
-    hide_all_except_blade_solid(part_document, gs_airfoil, gs_blade_geometry, gs_blade_surface)
+    hide_all_except_blade_solid(
+        part_document,
+        gs_airfoil,
+        gs_blade_geometry,
+        gs_blade_surface,
+    )
 
     try:
         part.Update()
@@ -594,11 +619,6 @@ def create_single_blade(
         print(f"[WARNING] Part update failed: {e}")
 
     save_part(part_document, output_dir, output_name)
-
-    caa.Quit()
-    pythoncom.CoUninitialize()
-
-    return output_name, output_dir
 
 
 def main():

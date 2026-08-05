@@ -1,8 +1,14 @@
 from ..config.manager import ConfigManager
 
 
-def run_config_command(action: str, key: str | None, value: str | None):
-    manager = ConfigManager()
+def run_config_command(
+    action: str,
+    key: str | None,
+    value: str | None,
+    *,
+    config_manager: ConfigManager | None = None,
+):
+    manager = config_manager or ConfigManager()
 
     if action == "show":
         config = manager.load()

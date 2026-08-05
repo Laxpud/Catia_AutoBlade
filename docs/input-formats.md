@@ -10,7 +10,7 @@ input/
   section_params/  截面参数 CSV
 ```
 
-当前扫描与核心建模代码按进程工作目录解析这些相对路径。虽然 `config.toml` 包含对应配置项，但主要运行路径尚未使用这些配置。
+这些是 `config.toml` 的默认目录。输入树可以通过 `paths.input_dir` 整体迁移，也可以分别设置翼型和截面参数目录；完整路径解析规则见[运行时配置](configuration.md)。
 
 ## 坐标系与单位
 
@@ -98,7 +98,7 @@ idx,scale/m,translate_x/m,translate_y/m,translate_z/m,rotate/deg,airfoil
 
 ## 输出命名
 
-单模型默认名称由翼型文件名和截面参数文件名组合得到，例如：
+单模型默认名称由 `defaults.output_name_template` 根据翼型文件名和截面参数文件名生成，例如：
 
 ```text
 sc1095.csv + section_params-1.csv
@@ -106,4 +106,4 @@ sc1095.csv + section_params-1.csv
   -> sc1095_blade-1.stp
 ```
 
-批处理会在输出基准目录下增加翼型名称子目录。已存在的同名输出会在保存前被删除，因此输出目录不应包含需要保留的同名手工模型。
+默认模板是 `{airfoil}_blade-{idx}`。可用字段及 CLI 输出目录覆盖规则见[运行时配置](configuration.md)。批处理会在输出基准目录下增加翼型名称子目录。已存在的同名输出会在保存前被删除，因此输出目录不应包含需要保留的同名手工模型。

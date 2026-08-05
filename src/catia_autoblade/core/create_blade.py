@@ -1,8 +1,13 @@
 import os
 import csv
 import math
+from pathlib import Path
+
 import win32com.client
 import pythoncom
+
+from ..config.manager import ConfigManager
+from ..utils.output_naming import build_output_name
 
 CATPart = "Part"
 CATHybridShapePointCoord = 0
@@ -39,7 +44,7 @@ def create_part():
         pythoncom.CoInitialize()
         caa = win32com.client.Dispatch("CATIA.Application")
         caa.Visible = False
-        print(f"[INFO] Start CAA Automation via COM")
+        print("[INFO] Start CAA Automation via COM")
 
         documents = caa.Documents
         part_document = documents.Add(CATPart)
@@ -120,7 +125,7 @@ def create_airfoil(part, points: list):
             line.Name = "airfoil_trailing_edge_closure"
             gs_airfoil.AppendHybridShape(line)
             part.Update()
-            print(f"[INFO] Line created to connect first and last points of airfoil cloud.")
+            print("[INFO] Line created to connect first and last points of airfoil cloud.")
 
             spline_ref = part.CreateReferenceFromObject(spline)
             line_ref = part.CreateReferenceFromObject(line)
@@ -128,7 +133,7 @@ def create_airfoil(part, points: list):
             join_feature.Name = "airfoil_closed_profile"
             gs_airfoil.AppendHybridShape(join_feature)
             part.Update()
-            print(f"[INFO] Spline and line joined successfully.")
+            print("[INFO] Spline and line joined successfully.")
             te_coord = (first_point, last_point)
             return gs_airfoil, join_feature, is_sharp, te_coord
         else:
@@ -526,14 +531,52 @@ def hide_all_except_blade_solid(part_document, gs_airfoil, gs_blade_geometry, gs
         print(f"[WARNING] Error hiding objects: {e}")
 
 
-def create_single_blade(airfoil_filename, section_params_filename, output_dir="output", output_name="blade"):
+def create_single_blade(
+    airfoil_filename,
+    section_params_filename,
+    output_dir=None,
+    output_name=None,
+    *,
+    airfoil_dir=None,
+    section_params_dir=None,
+    output_name_template=None,
+):
+    """使用显式运行参数建模，缺省项统一回退到 ``ConfigManager``。"""
+    runtime_config = None
+    needs_runtime_config = (
+        airfoil_dir is None
+        or section_params_dir is None
+        or output_dir is None
+        or (output_name is None and output_name_template is None)
+    )
+    if needs_runtime_config:
+        runtime_config = ConfigManager().load_runtime()
+
+    if airfoil_dir is None:
+        airfoil_dir = runtime_config.paths.airfoil_dir
+    if section_params_dir is None:
+        section_params_dir = runtime_config.paths.section_params_dir
+    if output_dir is None:
+        output_dir = runtime_config.paths.output_dir
+    if output_name is None:
+        template = output_name_template
+        if template is None:
+            template = runtime_config.defaults.output_name_template
+        author = runtime_config.defaults.author if runtime_config else ""
+        output_name = build_output_name(
+            template,
+            airfoil_filename,
+            section_params_filename,
+            author=author,
+        )
+
     caa, part_document, part = create_part()
 
-    airfoil_path = os.path.join("input", "airfoils", airfoil_filename)
+    airfoil_path = Path(airfoil_dir) / airfoil_filename
     points = read_airfoil_csv(airfoil_path)
     gs_airfoil, airfoil, is_sharp, te_coords = create_airfoil(part, points)
 
-    section_params_path = os.path.join("input", "section_params", section_params_filename)
+    section_params_path = Path(section_params_dir) / section_params_filename
     gs_blade_geometry, section_splines, le_spline, te_upper_spline, te_lower_spline, le_points = create_blade_geometry(
         part, airfoil, te_coords, is_sharp, section_params_path
     )
@@ -542,7 +585,7 @@ def create_single_blade(airfoil_filename, section_params_filename, output_dir="o
         part, section_splines, le_spline, te_upper_spline, te_lower_spline, le_points, is_sharp
     )
 
-    blade_solid = create_blade_solid(part, blade_surface)
+    create_blade_solid(part, blade_surface)
     hide_all_except_blade_solid(part_document, gs_airfoil, gs_blade_geometry, gs_blade_surface)
 
     try:

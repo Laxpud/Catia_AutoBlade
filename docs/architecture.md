@@ -21,8 +21,8 @@ Typer CLI
 - `catia_autoblade.commands`：把 CLI 输入转换为核心函数参数，不应包含 CATIA 几何规则。
 - `catia_autoblade.core.create_blade`：单叶片建模主流程和 CATIA COM 操作。
 - `catia_autoblade.core.batch`：组合翼型与参数文件，逐个调用单叶片流程。
-- `catia_autoblade.config`：配置模型和 TOML 持久化；目前尚未接入主要建模路径。
-- `catia_autoblade.utils.file_scanner`：发现输入目录中的 CSV 文件。
+- `catia_autoblade.config`：配置模型、TOML 持久化及运行时绝对路径解析。
+- `catia_autoblade.utils.file_scanner`：从配置的输入目录发现 CSV 文件。
 
 ## 单叶片建模流程
 
@@ -38,7 +38,7 @@ Typer CLI
 
 ## 批处理模型
 
-批处理对选中的翼型文件和截面参数文件执行笛卡尔积。每个组合都会重新进入完整的单叶片流程，并输出到以翼型名称命名的子目录。
+批处理对选中的翼型文件和截面参数文件执行笛卡尔积。每个组合都会重新进入完整的单叶片流程，并输出到配置输出根目录下以翼型名称命名的子目录。单模型和批处理共享 `defaults.output_name_template`。
 
 当前没有共享 CATIA 会话、失败重试、事务式输出或断点续跑。某一组合失败会记录失败结果，然后继续处理其他组合。
 
@@ -63,6 +63,5 @@ Typer CLI
 - 一片叶片只能复用一个基准翼型，截面参数中的 `airfoil` 扩展列会被忽略。
 - 尖后缘通过首尾坐标精确相等判断，没有浮点容差。
 - CSV 解析主要依赖列位置，缺少启动 CATIA 前的完整 schema 校验。
-- `config.toml` 尚未成为扫描、输出或命名逻辑的运行时来源。
 - COM 清理只位于成功路径，异常可能遗留隐藏的 CATIA 进程。
 - 建模核心直接依赖动态 COM 对象，尚未形成便于单元测试的适配器边界。

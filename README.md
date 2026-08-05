@@ -61,7 +61,7 @@ Create all selected combinations:
 uv run autoblade batch --airfoil sc1095.csv
 ```
 
-Use `--interactive` with `create` or `batch` to select inputs at the prompt. Generated files are written to `output/` unless `--output` is provided.
+Use `--interactive` with `create` or `batch` to select inputs at the prompt. Generated files use the directory and naming template from `config.toml`; an explicit `--output` overrides the configured output directory.
 
 The standalone entry points accept the same options as their corresponding subcommands:
 
@@ -72,13 +72,14 @@ uv run autoblade-batch --airfoil sc1095.csv
 
 ## Input overview
 
-Airfoil CSV files belong in `input/airfoils/`. Section parameter CSV files belong in `input/section_params/`. Coordinates, units, ordering, required columns, and current validation limits are documented in [Input data formats](docs/input-formats.md).
+By default, airfoil CSV files belong in `input/airfoils/` and section parameter CSV files in `input/section_params/`; both locations are configurable. Coordinates, units, ordering, required columns, and current validation limits are documented in [Input data formats](docs/input-formats.md).
 
 ## Documentation
 
 - [Technical documentation index](docs/index.md)
 - [Architecture](docs/architecture.md)
 - [Input data formats](docs/input-formats.md)
+- [Runtime configuration](docs/configuration.md)
 - [Active work and acceptance criteria](TODO.md)
 
 ## License

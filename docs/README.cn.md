@@ -61,7 +61,7 @@ uv run autoblade create --airfoil sc1095.csv --section section_params-1.csv
 uv run autoblade batch --airfoil sc1095.csv
 ```
 
-为 `create` 或 `batch` 增加 `--interactive` 可通过交互提示选择输入。未指定 `--output` 时，生成文件写入 `output/`。
+为 `create` 或 `batch` 增加 `--interactive` 可通过交互提示选择输入。生成文件使用 `config.toml` 中的目录和命名模板；显式 `--output` 会覆盖配置输出目录。
 
 独立入口接受与对应子命令相同的选项：
 
@@ -72,13 +72,14 @@ uv run autoblade-batch --airfoil sc1095.csv
 
 ## 输入概览
 
-翼型 CSV 放在 `input/airfoils/`，截面参数 CSV 放在 `input/section_params/`。坐标、单位、点序、必需字段和当前校验限制见[输入数据格式](input-formats.md)。
+默认情况下，翼型 CSV 放在 `input/airfoils/`，截面参数 CSV 放在 `input/section_params/`；两个位置均可配置。坐标、单位、点序、必需字段和当前校验限制见[输入数据格式](input-formats.md)。
 
 ## 文档
 
 - [技术文档索引](index.md)
 - [架构说明](architecture.md)
 - [输入数据格式](input-formats.md)
+- [运行时配置](configuration.md)
 - [活动任务与验收条件](../TODO.md)
 
 ## 许可证

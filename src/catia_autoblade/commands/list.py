@@ -1,10 +1,14 @@
+from ..config.manager import ConfigManager
 from ..utils.file_scanner import get_available_files
 
 
-def run_list_command(config_show: bool):
+def run_list_command(
+    config_show: bool,
+    *,
+    config_manager: ConfigManager | None = None,
+):
+    manager = config_manager or ConfigManager()
     if config_show:
-        from ..config.manager import ConfigManager
-        manager = ConfigManager()
         config = manager.load()
         print("[INFO] Current configuration:")
         print(f"  input_dir: {config.paths.input_dir}")
@@ -14,7 +18,11 @@ def run_list_command(config_show: bool):
         print(f"  author: {config.defaults.author}")
         print(f"  output_name_template: {config.defaults.output_name_template}")
     else:
-        airfoil_files, section_params_files = get_available_files()
+        config = manager.load_runtime()
+        airfoil_files, section_params_files = get_available_files(
+            airfoil_dir=config.paths.airfoil_dir,
+            section_params_dir=config.paths.section_params_dir,
+        )
         print("[INFO] Available airfoil files:")
         for f in airfoil_files:
             print(f"  - {f}")

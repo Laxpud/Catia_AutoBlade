@@ -31,8 +31,8 @@ dev = ["pytest", "ruff"]
 
 [project.scripts]
 autoblade = "catia_autoblade.cli:app"
-autoblade-create = "catia_autoblade.commands.create:run_create_command"
-autoblade-batch = "catia_autoblade.commands.batch:run_batch_command"
+autoblade-create = "catia_autoblade.cli:create_entrypoint"
+autoblade-batch = "catia_autoblade.cli:batch_entrypoint"
 
 [project.urls]
 Repository = "https://github.com/Laxpud/catia-autoblade"

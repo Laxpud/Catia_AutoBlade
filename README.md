@@ -46,24 +46,29 @@ uv pip install -e .
 List available input files:
 
 ```powershell
-autoblade list
+uv run autoblade list
 ```
 
 Create one blade:
 
 ```powershell
-autoblade create --airfoil sc1095.csv --section section_params-1.csv
+uv run autoblade create --airfoil sc1095.csv --section section_params-1.csv
 ```
 
 Create all selected combinations:
 
 ```powershell
-autoblade batch --airfoil sc1095.csv
+uv run autoblade batch --airfoil sc1095.csv
 ```
 
 Use `--interactive` with `create` or `batch` to select inputs at the prompt. Generated files are written to `output/` unless `--output` is provided.
 
-> The standalone `autoblade-create` and `autoblade-batch` entry points are currently tracked as broken. Use the `autoblade` subcommands above.
+The standalone entry points accept the same options as their corresponding subcommands:
+
+```powershell
+uv run autoblade-create --airfoil sc1095.csv --section section_params-1.csv
+uv run autoblade-batch --airfoil sc1095.csv
+```
 
 ## Input overview
 

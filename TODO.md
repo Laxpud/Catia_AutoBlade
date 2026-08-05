@@ -5,7 +5,7 @@
 ## 当前里程碑：稳定单翼型建模链路
 
 - [x] 建立英文项目入口、中文翻译、技术文档索引和活动任务清单。
-- [ ] 修复独立 CLI 入口 `autoblade-create` 和 `autoblade-batch`。
+- [x] 修复独立 CLI 入口 `autoblade-create` 和 `autoblade-batch`。
   - 验收：两个命令的 `--help` 均以状态码 0 退出，并且能够解析与主命令一致的参数。
   - 验收：README 中的所有命令示例都可以执行到预期阶段。
 - [ ] 让 `config.toml` 成为运行时配置来源，而不只是可查看、可编辑的数据文件。

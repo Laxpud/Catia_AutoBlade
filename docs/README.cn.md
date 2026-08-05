@@ -46,24 +46,29 @@ uv pip install -e .
 列出可用输入文件：
 
 ```powershell
-autoblade list
+uv run autoblade list
 ```
 
 创建一个叶片：
 
 ```powershell
-autoblade create --airfoil sc1095.csv --section section_params-1.csv
+uv run autoblade create --airfoil sc1095.csv --section section_params-1.csv
 ```
 
 创建所有选定组合：
 
 ```powershell
-autoblade batch --airfoil sc1095.csv
+uv run autoblade batch --airfoil sc1095.csv
 ```
 
 为 `create` 或 `batch` 增加 `--interactive` 可通过交互提示选择输入。未指定 `--output` 时，生成文件写入 `output/`。
 
-> 独立入口 `autoblade-create` 和 `autoblade-batch` 当前已知不可用。请使用上面的 `autoblade` 子命令。
+独立入口接受与对应子命令相同的选项：
+
+```powershell
+uv run autoblade-create --airfoil sc1095.csv --section section_params-1.csv
+uv run autoblade-batch --airfoil sc1095.csv
+```
 
 ## 输入概览
 

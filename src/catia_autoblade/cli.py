@@ -51,5 +51,18 @@ def config(
     run_config_command(action, key, value)
 
 
+def create_entrypoint() -> None:
+    """运行与 ``autoblade create`` 参数一致的独立 CLI 入口。"""
+    # console script 会零参数调用目标函数，因此需要先由 Typer 解析命令行，
+    # 再复用主命令的回调，避免独立入口与子命令维护两套参数契约。
+    typer.run(create)
+
+
+def batch_entrypoint() -> None:
+    """运行与 ``autoblade batch`` 参数一致的独立 CLI 入口。"""
+    # 与 create 入口采用同一模式，保证新增或调整选项时两种调用方式同步变化。
+    typer.run(batch)
+
+
 if __name__ == "__main__":
     app()

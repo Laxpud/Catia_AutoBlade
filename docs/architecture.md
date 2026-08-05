@@ -20,6 +20,7 @@ Typer CLI
 - `catia_autoblade.cli`：注册 `create`、`batch`、`list` 和 `config` 子命令。
 - `catia_autoblade.commands`：把 CLI 输入转换为核心函数参数，不应包含 CATIA 几何规则。
 - `catia_autoblade.core.catia_session`：独占 CATIA 实例并管理文档与 COM 生命周期。
+- `catia_autoblade.core.input_validation`：在启动 CATIA 前解析 CSV 并执行数据契约校验。
 - `catia_autoblade.core.create_blade`：单叶片建模主流程和 CATIA COM 操作。
 - `catia_autoblade.core.batch`：组合翼型与参数文件，逐个调用单叶片流程。
 - `catia_autoblade.config`：配置模型、TOML 持久化及运行时绝对路径解析。
@@ -27,15 +28,16 @@ Typer CLI
 
 ## 单叶片建模流程
 
-1. 初始化 COM，通过 `DispatchEx` 启动当前任务独占的隐藏 `CATIA.Application`，创建空 `Part` 文档。
-2. 读取以 m 表示、弦长为 1 m 的基准翼型点，将弦向坐标反向并平移，使 X 轴成为 1/4 弦线。
-3. 在 `airfoil` 几何集中创建点和样条；钝后缘额外增加封口直线和 Join。
-4. 读取所有截面参数，对同一基准翼型依次执行绕 X 轴旋转、相对原点缩放和三维平移。
-5. 从每条实际截面曲线提取前缘点，按输入端点变换生成后缘点，并用它们建立纵向导引样条。
-6. 以变换后的截面为 Loft 截面，以前缘和后缘样条为导引线生成叶片曲面。
-7. 使用 `CloseSurface` 将封闭曲面转换为实体。
-8. 隐藏辅助几何，保存 `.CATPart`，并导出 `.stp`。
-9. 在 `finally` 语义下关闭文档、退出 CATIA、回收动态代理并执行 `CoUninitialize`。
+1. 解析并校验翼型和截面参数 CSV；任何输入错误在初始化 COM 前终止。
+2. 初始化 COM，通过 `DispatchEx` 启动当前任务独占的隐藏 `CATIA.Application`，创建空 `Part` 文档。
+3. 将以 m 表示、弦长为 1 m 的基准翼型弦向坐标反向并平移，使 X 轴成为 1/4 弦线。
+4. 在 `airfoil` 几何集中创建点和样条；钝后缘额外增加封口直线和 Join。
+5. 对已校验的截面参数依次执行绕 X 轴旋转、相对原点缩放和三维平移。
+6. 从每条实际截面曲线提取前缘点，按输入端点变换生成后缘点，并用它们建立纵向导引样条。
+7. 以变换后的截面为 Loft 截面，以前缘和后缘样条为导引线生成叶片曲面。
+8. 使用 `CloseSurface` 将封闭曲面转换为实体。
+9. 隐藏辅助几何，保存 `.CATPart`，并导出 `.stp`。
+10. 在 `finally` 语义下关闭文档、退出 CATIA、回收动态代理并执行 `CoUninitialize`。
 
 ## CATIA 与 COM 生命周期
 
@@ -76,5 +78,4 @@ Typer CLI
 
 - 一片叶片只能复用一个基准翼型，截面参数中的 `airfoil` 扩展列会被忽略。
 - 尖后缘通过首尾坐标精确相等判断，没有浮点容差。
-- CSV 解析主要依赖列位置，缺少启动 CATIA 前的完整 schema 校验。
 - 建模核心直接依赖动态 COM 对象，尚未形成便于单元测试的适配器边界。

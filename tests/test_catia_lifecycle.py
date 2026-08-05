@@ -139,6 +139,11 @@ def _patch_successful_geometry(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(create_module, "read_airfoil_csv", lambda path: [object()])
     monkeypatch.setattr(
         create_module,
+        "read_section_parameters",
+        lambda path: [{"idx": 1}, {"idx": 2}],
+    )
+    monkeypatch.setattr(
+        create_module,
         "create_airfoil",
         lambda part, points: ("airfoil_body", "airfoil", True, (object(),)),
     )

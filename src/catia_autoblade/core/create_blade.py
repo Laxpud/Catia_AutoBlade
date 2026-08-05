@@ -1,11 +1,15 @@
 import os
-import csv
 import math
 from pathlib import Path
 
 from ..config.manager import ConfigManager
 from ..utils.output_naming import build_output_name
 from .catia_session import CatiaSession
+from .input_validation import (
+    AIRFOIL_QUARTER_CHORD_RATIO,
+    read_airfoil_csv,
+    read_section_parameters,
+)
 
 CATHybridShapePointCoord = 0
 CATConstraintMode = 1
@@ -15,15 +19,6 @@ CAT_GSM_MAX = 1
 # 因此只允许在调用 COM 接口的边界执行单位换算。
 CATIA_MM_PER_METER = 1000.0
 AIRFOIL_REFERENCE_CHORD_M = 1.0
-AIRFOIL_QUARTER_CHORD_RATIO = 0.25
-SECTION_PARAMETER_FIELDS = (
-    'idx',
-    'scale/m',
-    'translate_x/m',
-    'translate_y/m',
-    'translate_z/m',
-    'rotate/deg',
-)
 
 
 def meters_to_catia_mm(value_m):
@@ -34,24 +29,6 @@ def meters_to_catia_mm(value_m):
 def point_m_to_catia_mm(point_m):
     """将领域坐标点从 m 换算为 CATIA Automation 使用的 mm 三元组。"""
     return tuple(meters_to_catia_mm(coordinate) for coordinate in point_m)
-
-
-def read_airfoil_csv(csv_path: str):
-    try:
-        points = []
-        with open(csv_path, 'r', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                # CSV 坐标直接表示 m：弦长 1 即 1 m。这里仅完成坐标系变换，
-                # 不执行 CATIA 接口所需的 mm 换算。
-                x = float(row['x'])
-                y = -float(row['y']) + AIRFOIL_QUARTER_CHORD_RATIO
-                z = float(row['z'])
-                points.append((x, y, z))
-        print(f"[INFO] Read {len(points)} points from CSV file.")
-        return points
-    except Exception as e:
-        raise Exception(f"[ERROR] Error reading CSV file: {e}") from e
 
 
 def create_airfoil(part, points: list):
@@ -122,37 +99,6 @@ def create_airfoil(part, points: list):
             return gs_airfoil, spline, is_sharp, te_coord
     except Exception as e:
         raise Exception(f"[ERROR] Error creating airfoil cloud: {e}") from e
-
-
-def read_section_parameters(csv_path: str):
-    try:
-        sections = []
-        with open(csv_path, 'r', encoding='utf-8-sig') as f:
-            reader = csv.DictReader(f)
-            header = reader.fieldnames or []
-            missing_fields = [
-                field for field in SECTION_PARAMETER_FIELDS if field not in header
-            ]
-            if missing_fields:
-                raise ValueError(
-                    "Section parameter CSV must use meter-based fields; "
-                    f"missing: {', '.join(missing_fields)}"
-                )
-            print(f"[INFO] CSV headers: {header}")
-            for row in reader:
-                section = {
-                    'idx': int(row['idx']),
-                    'chord_m': float(row['scale/m']),
-                    'translate_x_m': float(row['translate_x/m']),
-                    'translate_y_m': float(row['translate_y/m']),
-                    'translate_z_m': float(row['translate_z/m']),
-                    'rotation_deg': float(row['rotate/deg']),
-                }
-                sections.append(section)
-        print(f"[INFO] Read {len(sections)} section parameters from CSV file.")
-        return sections
-    except Exception as e:
-        raise Exception(f"[ERROR] Error reading section parameters: {e}") from e
 
 
 def section_scale_factor(chord_m):
@@ -322,7 +268,7 @@ def create_section_le_te_points(
         raise Exception(f"[ERROR] Error creating LE/TE points for section {section['idx']}: {e}") from e
 
 
-def create_blade_geometry(part, airfoil, te_coords, is_sharp, csv_path: str):
+def create_blade_geometry(part, airfoil, te_coords, is_sharp, section_params):
     try:
         hybrid_bodies = part.HybridBodies
         gs_blade = hybrid_bodies.Add()
@@ -330,8 +276,6 @@ def create_blade_geometry(part, airfoil, te_coords, is_sharp, csv_path: str):
 
         hsf = part.HybridShapeFactory
         airfoil_ref = part.CreateReferenceFromObject(airfoil)
-        section_params = read_section_parameters(csv_path)
-
         origin_point = hsf.AddNewPointCoord(0, 0, 0)
         origin_point.Name = "section_transform_origin"
         gs_blade.AppendHybridShape(origin_point)
@@ -551,14 +495,21 @@ def create_single_blade(
             author=author,
         )
 
-    # 会话上下文覆盖读取、建模、更新、保存和导出的完整范围；其中任何一步
-    # 抛出异常，__exit__ 都会先完成资源清理，再把原始异常交给上层处理。
+    # 输入必须在 COM 初始化前完成解析和领域校验。这样缺列、非法数字、
+    # 点序或截面数量错误不会启动昂贵且需要清理的 CATIA 进程。
+    airfoil_path = Path(airfoil_dir) / airfoil_filename
+    section_params_path = Path(section_params_dir) / section_params_filename
+    points = read_airfoil_csv(airfoil_path)
+    section_params = read_section_parameters(section_params_path)
+
+    # 会话上下文只覆盖 CATIA 建模、更新、保存和导出；其中任何一步抛出异常，
+    # __exit__ 都会先完成资源清理，再把原始异常交给上层处理。
     with session_factory() as session:
         _build_and_save_blade(
             session.part_document,
             session.part,
-            Path(airfoil_dir) / airfoil_filename,
-            Path(section_params_dir) / section_params_filename,
+            points,
+            section_params,
             output_dir,
             output_name,
         )
@@ -569,15 +520,14 @@ def create_single_blade(
 def _build_and_save_blade(
     part_document,
     part,
-    airfoil_path,
-    section_params_path,
+    points,
+    section_params,
     output_dir,
     output_name,
 ):
     """在独立作用域内持有临时 CATIA 几何代理并完成建模与导出。"""
     # 该函数返回或因异常退栈后，几何特征代理会先于 CatiaSession.__exit__
     # 离开局部作用域，避免残留 COM 引用延迟隐藏 CATIA 进程退出。
-    points = read_airfoil_csv(airfoil_path)
     gs_airfoil, airfoil, is_sharp, te_coords = create_airfoil(part, points)
 
     (
@@ -592,7 +542,7 @@ def _build_and_save_blade(
         airfoil,
         te_coords,
         is_sharp,
-        section_params_path,
+        section_params,
     )
 
     gs_blade_surface, blade_surface = create_blade_surface(

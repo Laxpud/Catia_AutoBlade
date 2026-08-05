@@ -7,6 +7,7 @@ import pythoncom
 CATPart = "Part"
 CATHybridShapePointCoord = 0
 CATConstraintMode = 1
+CAT_GSM_MAX = 1
 
 # 输入文件和领域计算统一使用 m；CATIA Automation 的长度参数固定使用 mm，
 # 因此只允许在调用 COM 接口的边界执行单位换算。
@@ -94,12 +95,6 @@ def create_airfoil(part, points: list):
 
         first_point = points[0]
         last_point = points[-1]
-        le_coord = (
-            0.0,
-            AIRFOIL_QUARTER_CHORD_RATIO * AIRFOIL_REFERENCE_CHORD_M,
-            0.0,
-        )
-
         if first_point != last_point:
             is_sharp = False
             start_point = hybrid_shape_factory.AddNewPointCoord(
@@ -126,11 +121,11 @@ def create_airfoil(part, points: list):
             part.Update()
             print(f"[INFO] Spline and line joined successfully.")
             te_coord = (first_point, last_point)
-            return gs_airfoil, join_feature, is_sharp, (le_coord, te_coord)
+            return gs_airfoil, join_feature, is_sharp, te_coord
         else:
             is_sharp = True
             te_coord = (first_point,)
-            return gs_airfoil, spline, is_sharp, (le_coord, te_coord)
+            return gs_airfoil, spline, is_sharp, te_coord
     except Exception as e:
         raise Exception(f"[ERROR] Error creating airfoil cloud: {e}") from e
 
@@ -222,26 +217,70 @@ def transform_airfoil_section(part, airfoil_ref, x_axis_ref, origin_ref, section
         raise Exception(f"[ERROR] Error transforming section {section['idx']}: {e}") from e
 
 
-def create_section_le_te_points(part, gs_blade, le_te_coords, section, le_points, te_upper_points, te_lower_points):
+def create_section_le_te_points(
+    part,
+    gs_blade,
+    section_curve,
+    te_coords,
+    section,
+    le_points,
+    te_upper_points,
+    te_lower_points,
+):
     try:
         hsf = part.HybridShapeFactory
-        le_coord = le_te_coords[0]
-        te_coord = le_te_coords[1]
+        angle_rad = math.radians(section['rotation_deg'])
 
-        le_x, le_y, le_z = transform_point(
-            le_coord[0], le_coord[1], le_coord[2],
-            section['rotation_deg'], section['chord_m'],
-            section['translate_x_m'], section['translate_y_m'], section['translate_z_m']
+        # 前缘闭合点必须由当前截面曲线本身派生。理论前缘坐标不一定落在
+        # CATIA 根据离散点拟合出的样条上，点云越密时这种偏差反而可能更明显。
+        #
+        # 1. 基准翼型的前缘位于 +Y 极值；绕 X 轴扭转后，对应方向为
+        #    (0, cos(theta), sin(theta))。
+        # 2. 密集点云的 Extremum 可能包含多个非连通点，不能直接作为样条点。
+        # 3. 理论前缘仅用作 Near 的候选选择器；最终结果仍来自曲线极值，
+        #    因而严格位于当前截面上并随上游几何自动更新。
+        selector_x, selector_y, selector_z = transform_point(
+            0.0,
+            AIRFOIL_QUARTER_CHORD_RATIO * AIRFOIL_REFERENCE_CHORD_M,
+            0.0,
+            section['rotation_deg'],
+            section['chord_m'],
+            section['translate_x_m'],
+            section['translate_y_m'],
+            section['translate_z_m'],
         )
-        le_final = hsf.AddNewPointCoord(
-            *point_m_to_catia_mm((le_x, le_y, le_z))
+        le_selector = hsf.AddNewPointCoord(
+            *point_m_to_catia_mm((selector_x, selector_y, selector_z))
         )
+        le_selector.Name = f"leading_edge_selector_{section['idx']}"
+        gs_blade.AppendHybridShape(le_selector)
+        part.Update()
+
+        section_curve_ref = part.CreateReferenceFromObject(section_curve)
+        leading_edge_direction = hsf.AddNewDirectionByCoord(
+            0.0,
+            math.cos(angle_rad),
+            math.sin(angle_rad),
+        )
+        le_candidates = hsf.AddNewExtremum(
+            section_curve_ref,
+            leading_edge_direction,
+            CAT_GSM_MAX,
+        )
+        le_candidates.Name = f"leading_edge_candidates_{section['idx']}"
+        gs_blade.AppendHybridShape(le_candidates)
+        part.Update()
+
+        candidates_ref = part.CreateReferenceFromObject(le_candidates)
+        selector_ref = part.CreateReferenceFromObject(le_selector)
+        le_final = hsf.AddNewNear(candidates_ref, selector_ref)
+        le_final.Name = f"leading_edge_{section['idx']}"
         gs_blade.AppendHybridShape(le_final)
         part.Update()
         le_points.append(le_final)
 
-        if len(te_coord) == 2:
-            te_upper_coord, te_lower_coord = te_coord
+        if len(te_coords) == 2:
+            te_upper_coord, te_lower_coord = te_coords
             te_u_x, te_u_y, te_u_z = transform_point(
                 te_upper_coord[0], te_upper_coord[1], te_upper_coord[2],
                 section['rotation_deg'], section['chord_m'],
@@ -266,7 +305,7 @@ def create_section_le_te_points(part, gs_blade, le_te_coords, section, le_points
             part.Update()
             te_lower_points.append(te_lower_final)
         else:
-            te_single_coord = te_coord[0]
+            te_single_coord = te_coords[0]
             te_x, te_y, te_z = transform_point(
                 te_single_coord[0], te_single_coord[1], te_single_coord[2],
                 section['rotation_deg'], section['chord_m'],
@@ -283,7 +322,7 @@ def create_section_le_te_points(part, gs_blade, le_te_coords, section, le_points
         raise Exception(f"[ERROR] Error creating LE/TE points for section {section['idx']}: {e}") from e
 
 
-def create_blade_geometry(part, airfoil, le_te_coords, is_sharp, csv_path: str):
+def create_blade_geometry(part, airfoil, te_coords, is_sharp, csv_path: str):
     try:
         hybrid_bodies = part.HybridBodies
         gs_blade = hybrid_bodies.Add()
@@ -320,7 +359,14 @@ def create_blade_geometry(part, airfoil, le_te_coords, is_sharp, csv_path: str):
             section_splines.append(translated)
 
             create_section_le_te_points(
-                part, gs_blade, le_te_coords, section, le_points, te_upper_points, te_lower_points
+                part,
+                gs_blade,
+                translated,
+                te_coords,
+                section,
+                le_points,
+                te_upper_points,
+                te_lower_points,
             )
 
             print(f"[INFO] Section {section['idx']}: "
@@ -463,11 +509,11 @@ def create_single_blade(airfoil_filename, section_params_filename, output_dir="o
 
     airfoil_path = os.path.join("input", "airfoils", airfoil_filename)
     points = read_airfoil_csv(airfoil_path)
-    gs_airfoil, airfoil, is_sharp, le_te_coords = create_airfoil(part, points)
+    gs_airfoil, airfoil, is_sharp, te_coords = create_airfoil(part, points)
 
     section_params_path = os.path.join("input", "section_params", section_params_filename)
     gs_blade_geometry, section_splines, le_spline, te_upper_spline, te_lower_spline, le_points = create_blade_geometry(
-        part, airfoil, le_te_coords, is_sharp, section_params_path
+        part, airfoil, te_coords, is_sharp, section_params_path
     )
 
     gs_blade_surface, blade_surface = create_blade_surface(

@@ -8,6 +8,30 @@ CATPart = "Part"
 CATHybridShapePointCoord = 0
 CATConstraintMode = 1
 
+# 输入文件和领域计算统一使用 m；CATIA Automation 的长度参数固定使用 mm，
+# 因此只允许在调用 COM 接口的边界执行单位换算。
+CATIA_MM_PER_METER = 1000.0
+AIRFOIL_REFERENCE_CHORD_M = 1.0
+AIRFOIL_QUARTER_CHORD_RATIO = 0.25
+SECTION_PARAMETER_FIELDS = (
+    'idx',
+    'scale/m',
+    'translate_x/m',
+    'translate_y/m',
+    'translate_z/m',
+    'rotate/deg',
+)
+
+
+def meters_to_catia_mm(value_m):
+    """在 CATIA COM 边界将领域长度从 m 换算为接口要求的 mm。"""
+    return value_m * CATIA_MM_PER_METER
+
+
+def point_m_to_catia_mm(point_m):
+    """将领域坐标点从 m 换算为 CATIA Automation 使用的 mm 三元组。"""
+    return tuple(meters_to_catia_mm(coordinate) for coordinate in point_m)
+
 
 def create_part():
     try:
@@ -32,8 +56,10 @@ def read_airfoil_csv(csv_path: str):
         with open(csv_path, 'r', encoding='utf-8') as f:
             reader = csv.DictReader(f)
             for row in reader:
+                # CSV 坐标直接表示 m：弦长 1 即 1 m。这里仅完成坐标系变换，
+                # 不执行 CATIA 接口所需的 mm 换算。
                 x = float(row['x'])
-                y = -float(row['y']) + 0.25
+                y = -float(row['y']) + AIRFOIL_QUARTER_CHORD_RATIO
                 z = float(row['z'])
                 points.append((x, y, z))
         print(f"[INFO] Read {len(points)} points from CSV file.")
@@ -50,8 +76,10 @@ def create_airfoil(part, points: list):
         hybrid_shape_factory = part.HybridShapeFactory
 
         hybrid_shapes = []
-        for i, (x, y, z) in enumerate(points):
-            point = hybrid_shape_factory.AddNewPointCoord(x, y, z)
+        for point_m in points:
+            point = hybrid_shape_factory.AddNewPointCoord(
+                *point_m_to_catia_mm(point_m)
+            )
             gs_airfoil.AppendHybridShape(point)
             part.Update()
             hybrid_shapes.append(point)
@@ -66,15 +94,19 @@ def create_airfoil(part, points: list):
 
         first_point = points[0]
         last_point = points[-1]
-        le_coord = (0.0, 0.25, 0.0)
+        le_coord = (
+            0.0,
+            AIRFOIL_QUARTER_CHORD_RATIO * AIRFOIL_REFERENCE_CHORD_M,
+            0.0,
+        )
 
         if first_point != last_point:
             is_sharp = False
             start_point = hybrid_shape_factory.AddNewPointCoord(
-                first_point[0], first_point[1], first_point[2]
+                *point_m_to_catia_mm(first_point)
             )
             end_point = hybrid_shape_factory.AddNewPointCoord(
-                last_point[0], last_point[1], last_point[2]
+                *point_m_to_catia_mm(last_point)
             )
             gs_airfoil.AppendHybridShape(start_point)
             gs_airfoil.AppendHybridShape(end_point)
@@ -107,17 +139,25 @@ def read_section_parameters(csv_path: str):
     try:
         sections = []
         with open(csv_path, 'r', encoding='utf-8-sig') as f:
-            reader = csv.reader(f)
-            header = next(reader)
+            reader = csv.DictReader(f)
+            header = reader.fieldnames or []
+            missing_fields = [
+                field for field in SECTION_PARAMETER_FIELDS if field not in header
+            ]
+            if missing_fields:
+                raise ValueError(
+                    "Section parameter CSV must use meter-based fields; "
+                    f"missing: {', '.join(missing_fields)}"
+                )
             print(f"[INFO] CSV headers: {header}")
             for row in reader:
                 section = {
-                    'idx': int(row[0]),
-                    'scale': float(row[1]),
-                    'translate_x': float(row[2]),
-                    'translate_y': float(row[3]),
-                    'translate_z': float(row[4]),
-                    'rotation': float(row[5])
+                    'idx': int(row['idx']),
+                    'chord_m': float(row['scale/m']),
+                    'translate_x_m': float(row['translate_x/m']),
+                    'translate_y_m': float(row['translate_y/m']),
+                    'translate_z_m': float(row['translate_z/m']),
+                    'rotation_deg': float(row['rotate/deg']),
                 }
                 sections.append(section)
         print(f"[INFO] Read {len(sections)} section parameters from CSV file.")
@@ -126,41 +166,55 @@ def read_section_parameters(csv_path: str):
         raise Exception(f"[ERROR] Error reading section parameters: {e}") from e
 
 
-def transform_point(px, py, pz, rotation_deg, scale, tx, ty, tz):
+def section_scale_factor(chord_m):
+    """根据米制弦长计算相对于 1 m 基准翼型的无量纲缩放因子。"""
+    return chord_m / AIRFOIL_REFERENCE_CHORD_M
+
+
+def transform_point(px, py, pz, rotation_deg, chord_m, tx, ty, tz):
+    """按旋转、缩放、平移顺序计算基准翼型点的最终 m 坐标。"""
     angle_rad = math.radians(rotation_deg)
     cos_a = math.cos(angle_rad)
     sin_a = math.sin(angle_rad)
     x_rotated = px
     y_rotated = py * cos_a - pz * sin_a
     z_rotated = py * sin_a + pz * cos_a
-    new_x = x_rotated * scale + tx
-    new_y = y_rotated * scale + ty
-    new_z = z_rotated * scale + tz
+    scale_factor = section_scale_factor(chord_m)
+    new_x = x_rotated * scale_factor + tx
+    new_y = y_rotated * scale_factor + ty
+    new_z = z_rotated * scale_factor + tz
     return (new_x, new_y, new_z)
 
 
 def transform_airfoil_section(part, airfoil_ref, x_axis_ref, origin_ref, section):
     try:
         hsf = part.HybridShapeFactory
-        rotated = hsf.AddNewRotate(airfoil_ref, x_axis_ref, section['rotation'])
+        rotated = hsf.AddNewRotate(
+            airfoil_ref, x_axis_ref, section['rotation_deg']
+        )
         part.Update()
 
         rotated_ref = part.CreateReferenceFromObject(rotated)
-        scaled = hsf.AddNewHybridScaling(rotated_ref, origin_ref, section['scale'])
+        scale_factor = section_scale_factor(section['chord_m'])
+        scaled = hsf.AddNewHybridScaling(rotated_ref, origin_ref, scale_factor)
         part.Update()
 
         scaled_ref = part.CreateReferenceFromObject(scaled)
         translate_dir = hsf.AddNewDirectionByCoord(
-            section['translate_x'],
-            section['translate_y'],
-            section['translate_z']
+            section['translate_x_m'],
+            section['translate_y_m'],
+            section['translate_z_m']
         )
-        translate_distance = math.sqrt(
-            section['translate_x']**2 +
-            section['translate_y']**2 +
-            section['translate_z']**2
+        translate_distance_m = math.sqrt(
+            section['translate_x_m']**2 +
+            section['translate_y_m']**2 +
+            section['translate_z_m']**2
         )
-        translated = hsf.AddNewTranslate(scaled_ref, translate_dir, translate_distance)
+        translated = hsf.AddNewTranslate(
+            scaled_ref,
+            translate_dir,
+            meters_to_catia_mm(translate_distance_m),
+        )
         part.Update()
 
         return translated
@@ -176,10 +230,12 @@ def create_section_le_te_points(part, gs_blade, le_te_coords, section, le_points
 
         le_x, le_y, le_z = transform_point(
             le_coord[0], le_coord[1], le_coord[2],
-            section['rotation'], section['scale'],
-            section['translate_x'], section['translate_y'], section['translate_z']
+            section['rotation_deg'], section['chord_m'],
+            section['translate_x_m'], section['translate_y_m'], section['translate_z_m']
         )
-        le_final = hsf.AddNewPointCoord(le_x, le_y, le_z)
+        le_final = hsf.AddNewPointCoord(
+            *point_m_to_catia_mm((le_x, le_y, le_z))
+        )
         gs_blade.AppendHybridShape(le_final)
         part.Update()
         le_points.append(le_final)
@@ -188,20 +244,24 @@ def create_section_le_te_points(part, gs_blade, le_te_coords, section, le_points
             te_upper_coord, te_lower_coord = te_coord
             te_u_x, te_u_y, te_u_z = transform_point(
                 te_upper_coord[0], te_upper_coord[1], te_upper_coord[2],
-                section['rotation'], section['scale'],
-                section['translate_x'], section['translate_y'], section['translate_z']
+                section['rotation_deg'], section['chord_m'],
+                section['translate_x_m'], section['translate_y_m'], section['translate_z_m']
             )
-            te_upper_final = hsf.AddNewPointCoord(te_u_x, te_u_y, te_u_z)
+            te_upper_final = hsf.AddNewPointCoord(
+                *point_m_to_catia_mm((te_u_x, te_u_y, te_u_z))
+            )
             gs_blade.AppendHybridShape(te_upper_final)
             part.Update()
             te_upper_points.append(te_upper_final)
 
             te_l_x, te_l_y, te_l_z = transform_point(
                 te_lower_coord[0], te_lower_coord[1], te_lower_coord[2],
-                section['rotation'], section['scale'],
-                section['translate_x'], section['translate_y'], section['translate_z']
+                section['rotation_deg'], section['chord_m'],
+                section['translate_x_m'], section['translate_y_m'], section['translate_z_m']
             )
-            te_lower_final = hsf.AddNewPointCoord(te_l_x, te_l_y, te_l_z)
+            te_lower_final = hsf.AddNewPointCoord(
+                *point_m_to_catia_mm((te_l_x, te_l_y, te_l_z))
+            )
             gs_blade.AppendHybridShape(te_lower_final)
             part.Update()
             te_lower_points.append(te_lower_final)
@@ -209,10 +269,12 @@ def create_section_le_te_points(part, gs_blade, le_te_coords, section, le_points
             te_single_coord = te_coord[0]
             te_x, te_y, te_z = transform_point(
                 te_single_coord[0], te_single_coord[1], te_single_coord[2],
-                section['rotation'], section['scale'],
-                section['translate_x'], section['translate_y'], section['translate_z']
+                section['rotation_deg'], section['chord_m'],
+                section['translate_x_m'], section['translate_y_m'], section['translate_z_m']
             )
-            te_final = hsf.AddNewPointCoord(te_x, te_y, te_z)
+            te_final = hsf.AddNewPointCoord(
+                *point_m_to_catia_mm((te_x, te_y, te_z))
+            )
             gs_blade.AppendHybridShape(te_final)
             part.Update()
             te_upper_points.append(te_final)
@@ -237,7 +299,9 @@ def create_blade_geometry(part, airfoil, le_te_coords, is_sharp, csv_path: str):
         origin_ref = part.CreateReferenceFromObject(origin_point)
 
         x_dir = hsf.AddNewDirectionByCoord(1, 0, 0)
-        x_axis = hsf.AddNewLinePtDir(origin_ref, x_dir, 0, 1000.0, True)
+        x_axis = hsf.AddNewLinePtDir(
+            origin_ref, x_dir, 0, meters_to_catia_mm(1.0), True
+        )
         gs_blade.AppendHybridShape(x_axis)
         part.Update()
         x_axis_ref = part.CreateReferenceFromObject(x_axis)
@@ -259,9 +323,12 @@ def create_blade_geometry(part, airfoil, le_te_coords, is_sharp, csv_path: str):
                 part, gs_blade, le_te_coords, section, le_points, te_upper_points, te_lower_points
             )
 
-            print(f"[INFO] Section {section['idx']}: rotate={section['rotation']}deg, "
-                  f"scale={section['scale']}, translate=({section['translate_x']}, "
-                  f"{section['translate_y']}, {section['translate_z']})")
+            print(f"[INFO] Section {section['idx']}: "
+                  f"rotate={section['rotation_deg']}deg, "
+                  f"chord={section['chord_m']}m, scale_factor="
+                  f"{section_scale_factor(section['chord_m'])}, "
+                  f"translate=({section['translate_x_m']}, "
+                  f"{section['translate_y_m']}, {section['translate_z_m']})m")
 
         le_spline = hsf.AddNewSpline()
         for pt in le_points:

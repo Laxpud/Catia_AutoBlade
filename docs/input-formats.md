@@ -14,11 +14,13 @@ input/
 
 ## 坐标系与单位
 
-- 输入翼型位于 Y-Z 平面，`x` 应为 0。
-- 输入弦向坐标 `y` 从前缘 0 变化到后缘 1，弦长必须归一化为 1。
-- `z` 是归一化厚度坐标。
-- 建模时执行 `model_y = -input_y + 0.25`，因此模型 X 轴位于 1/4 弦线，前缘指向模型 Y 正方向。
-- 截面 `translate_*` 与最终弦长使用 mm；旋转使用 deg。
+- 输入翼型、截面弦长和三维平移统一使用 m；旋转使用 deg。
+- 输入翼型位于 Y-Z 平面，`x` 应为 0 m。
+- 输入弦向坐标 `y` 从前缘 0 m 变化到后缘 1 m，因此基准翼型弦长固定为 1 m。
+- `z` 是以 m 表示的厚度坐标。
+- Python 领域计算执行 `model_y_m = -input_y_m + 0.25 m`，因此模型 X 轴位于 1/4 弦线，前缘指向模型 Y 正方向。
+- 创建各截面时，程序使用 `scale/m / 1 m` 作为无量纲缩放因子。
+- CATIA Automation 的长度参数固定使用 mm；程序只在 COM 调用边界执行 `value_mm = value_m * 1000`。修改 CATIA 界面显示单位不会改变这一接口规则。
 
 ## 翼型 CSV
 
@@ -51,12 +53,12 @@ x,y,z
 
 ## 截面参数 CSV
 
-当前正式读取的六列按位置排列：
+当前正式读取并校验以下六个米制表头：
 
 ```csv
-idx,scale/mm,translate_x/mm,translate_y/mm,translate_z/mm,rotate/deg
-1,70.94402706,160.0,0.0,0.0,15.004421
-2,74.2,185.6,0.0,0.0,13.9
+idx,scale/m,translate_x/m,translate_y/m,translate_z/m,rotate/deg
+1,0.07094402706,0.16,0.0,0.0,15.004421
+2,0.0742,0.1856,0.0,0.0,13.9
 ```
 
 字段含义：
@@ -64,21 +66,21 @@ idx,scale/mm,translate_x/mm,translate_y/mm,translate_z/mm,rotate/deg
 | 字段 | 类型 | 单位 | 含义 |
 | --- | --- | --- | --- |
 | `idx` | integer | - | 截面序号；应沿展向递增且唯一 |
-| `scale/mm` | float | mm | 对归一化翼型的缩放比例，即截面弦长 |
-| `translate_x/mm` | float | mm | 沿叶片展向的位置 |
-| `translate_y/mm` | float | mm | 相对 1/4 弦线的弦向偏移 |
-| `translate_z/mm` | float | mm | 垂直方向偏移 |
+| `scale/m` | float | m | 截面最终弦长；相对于 1 m 基准翼型的缩放因子在数值上等于该值 |
+| `translate_x/m` | float | m | 沿叶片展向的位置 |
+| `translate_y/m` | float | m | 相对 1/4 弦线的弦向偏移 |
+| `translate_z/m` | float | m | 垂直方向偏移 |
 | `rotate/deg` | float | deg | 绕模型 X 轴的截面扭转角 |
 
-程序当前按文件行顺序生成截面，不会主动按 `idx` 排序，也不会检查重复、逆序或缺号。Loft 至少需要两个有效截面，但当前解析器没有提前验证数量。
+解析器要求上述米制表头，避免把旧版 mm 数据静默解释成 m。程序当前按文件行顺序生成截面，不会主动按 `idx` 排序，也不会检查重复、逆序或缺号。Loft 至少需要两个有效截面，但当前解析器没有提前验证数量。
 
 ## `airfoil` 扩展列
 
 工作区中的组合参数样例增加了第七列：
 
 ```csv
-idx,scale/mm,translate_x/mm,translate_y/mm,translate_z/mm,rotate/deg,airfoil
-1,99.129967,78.74,0,0,36.103446,AIRFOIL1_sharp.csv
+idx,scale/m,translate_x/m,translate_y/m,translate_z/m,rotate/deg,airfoil
+1,0.099129967,0.07874,0,0,36.103446,AIRFOIL1_sharp.csv
 ```
 
 该列表达“某个截面使用哪个翼型”的意图，但尚未成为正式运行时契约。当前解析器会忽略第七列，CLI 传入的单个翼型文件仍然用于全部截面。

@@ -77,9 +77,13 @@ def create_airfoil(part, points: list):
         hybrid_shape_factory = part.HybridShapeFactory
 
         hybrid_shapes = []
-        for point_m in points:
+        point_index_width = max(4, len(str(len(points))))
+        for point_index, point_m in enumerate(points, start=1):
             point = hybrid_shape_factory.AddNewPointCoord(
                 *point_m_to_catia_mm(point_m)
+            )
+            point.Name = (
+                f"airfoil_cloud_point_{point_index:0{point_index_width}d}"
             )
             gs_airfoil.AppendHybridShape(point)
             part.Update()
@@ -89,6 +93,7 @@ def create_airfoil(part, points: list):
         for point in hybrid_shapes:
             reference = part.CreateReferenceFromObject(point)
             spline.AddPoint(reference)
+        spline.Name = "airfoil_surface_spline"
         gs_airfoil.AppendHybridShape(spline)
         part.Update()
         print(f"[INFO] Airfoil spline created with {len(hybrid_shapes)} points.")
@@ -103,6 +108,8 @@ def create_airfoil(part, points: list):
             end_point = hybrid_shape_factory.AddNewPointCoord(
                 *point_m_to_catia_mm(last_point)
             )
+            start_point.Name = "airfoil_trailing_edge_upper"
+            end_point.Name = "airfoil_trailing_edge_lower"
             gs_airfoil.AppendHybridShape(start_point)
             gs_airfoil.AppendHybridShape(end_point)
             part.Update()
@@ -110,6 +117,7 @@ def create_airfoil(part, points: list):
             start_point_ref = part.CreateReferenceFromObject(start_point)
             end_point_ref = part.CreateReferenceFromObject(end_point)
             line = hybrid_shape_factory.AddNewLinePtPt(start_point_ref, end_point_ref)
+            line.Name = "airfoil_trailing_edge_closure"
             gs_airfoil.AppendHybridShape(line)
             part.Update()
             print(f"[INFO] Line created to connect first and last points of airfoil cloud.")
@@ -117,6 +125,7 @@ def create_airfoil(part, points: list):
             spline_ref = part.CreateReferenceFromObject(spline)
             line_ref = part.CreateReferenceFromObject(line)
             join_feature = hybrid_shape_factory.AddNewJoin(spline_ref, line_ref)
+            join_feature.Name = "airfoil_closed_profile"
             gs_airfoil.AppendHybridShape(join_feature)
             part.Update()
             print(f"[INFO] Spline and line joined successfully.")
@@ -187,11 +196,13 @@ def transform_airfoil_section(part, airfoil_ref, x_axis_ref, origin_ref, section
         rotated = hsf.AddNewRotate(
             airfoil_ref, x_axis_ref, section['rotation_deg']
         )
+        rotated.Name = f"section_rotation_{section['idx']}"
         part.Update()
 
         rotated_ref = part.CreateReferenceFromObject(rotated)
         scale_factor = section_scale_factor(section['chord_m'])
         scaled = hsf.AddNewHybridScaling(rotated_ref, origin_ref, scale_factor)
+        scaled.Name = f"section_scaling_{section['idx']}"
         part.Update()
 
         scaled_ref = part.CreateReferenceFromObject(scaled)
@@ -210,6 +221,7 @@ def transform_airfoil_section(part, airfoil_ref, x_axis_ref, origin_ref, section
             translate_dir,
             meters_to_catia_mm(translate_distance_m),
         )
+        translated.Name = f"section_translated_profile_{section['idx']}"
         part.Update()
 
         return translated
@@ -289,6 +301,7 @@ def create_section_le_te_points(
             te_upper_final = hsf.AddNewPointCoord(
                 *point_m_to_catia_mm((te_u_x, te_u_y, te_u_z))
             )
+            te_upper_final.Name = f"trailing_edge_upper_{section['idx']}"
             gs_blade.AppendHybridShape(te_upper_final)
             part.Update()
             te_upper_points.append(te_upper_final)
@@ -301,6 +314,7 @@ def create_section_le_te_points(
             te_lower_final = hsf.AddNewPointCoord(
                 *point_m_to_catia_mm((te_l_x, te_l_y, te_l_z))
             )
+            te_lower_final.Name = f"trailing_edge_lower_{section['idx']}"
             gs_blade.AppendHybridShape(te_lower_final)
             part.Update()
             te_lower_points.append(te_lower_final)
@@ -314,6 +328,7 @@ def create_section_le_te_points(
             te_final = hsf.AddNewPointCoord(
                 *point_m_to_catia_mm((te_x, te_y, te_z))
             )
+            te_final.Name = f"trailing_edge_{section['idx']}"
             gs_blade.AppendHybridShape(te_final)
             part.Update()
             te_upper_points.append(te_final)
@@ -333,6 +348,7 @@ def create_blade_geometry(part, airfoil, te_coords, is_sharp, csv_path: str):
         section_params = read_section_parameters(csv_path)
 
         origin_point = hsf.AddNewPointCoord(0, 0, 0)
+        origin_point.Name = "section_transform_origin"
         gs_blade.AppendHybridShape(origin_point)
         part.Update()
         origin_ref = part.CreateReferenceFromObject(origin_point)
@@ -341,6 +357,7 @@ def create_blade_geometry(part, airfoil, te_coords, is_sharp, csv_path: str):
         x_axis = hsf.AddNewLinePtDir(
             origin_ref, x_dir, 0, meters_to_catia_mm(1.0), True
         )
+        x_axis.Name = "section_rotation_axis"
         gs_blade.AppendHybridShape(x_axis)
         part.Update()
         x_axis_ref = part.CreateReferenceFromObject(x_axis)
@@ -380,6 +397,7 @@ def create_blade_geometry(part, airfoil, te_coords, is_sharp, csv_path: str):
         for pt in le_points:
             ref = part.CreateReferenceFromObject(pt)
             le_spline.AddPoint(ref)
+        le_spline.Name = "leading_edge_guide"
         gs_blade.AppendHybridShape(le_spline)
         part.Update()
 
@@ -387,6 +405,7 @@ def create_blade_geometry(part, airfoil, te_coords, is_sharp, csv_path: str):
         for pt in te_upper_points:
             ref = part.CreateReferenceFromObject(pt)
             te_upper_spline.AddPoint(ref)
+        te_upper_spline.Name = "trailing_edge_upper_guide"
         gs_blade.AppendHybridShape(te_upper_spline)
         part.Update()
 
@@ -397,6 +416,7 @@ def create_blade_geometry(part, airfoil, te_coords, is_sharp, csv_path: str):
             for pt in te_lower_points:
                 ref = part.CreateReferenceFromObject(pt)
                 te_lower_spline.AddPoint(ref)
+            te_lower_spline.Name = "trailing_edge_lower_guide"
             gs_blade.AppendHybridShape(te_lower_spline)
             part.Update()
 
@@ -428,6 +448,7 @@ def create_blade_surface(part, section_splines: list, le_spline, te_upper_spline
         le_ref = part.CreateReferenceFromObject(le_spline)
         te_upper_ref = part.CreateReferenceFromObject(te_upper_spline)
         blade_surface = hsf.AddNewLoft()
+        blade_surface.Name = "blade_loft_surface"
 
         for i, ref in enumerate(section_refs):
             le_pt_ref = le_point_refs[i]
@@ -453,11 +474,12 @@ def create_blade_solid(part, surface):
         shape_factory = part.ShapeFactory
         bodies = part.Bodies
         new_body = bodies.Add()
-        new_body.Name = "blade_solid"
+        new_body.Name = "blade_solid_body"
         part.InWorkObject = new_body
 
         surface_ref = part.CreateReferenceFromObject(surface)
         blade_solid = shape_factory.AddNewCloseSurface(surface_ref)
+        blade_solid.Name = "blade_closed_solid"
         part.Update()
         print("[INFO] Blade solid created successfully.")
         return blade_solid

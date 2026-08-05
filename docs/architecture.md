@@ -52,6 +52,10 @@ Typer CLI
 - Loft 截面的对应点依靠前缘点定位，前缘及后缘样条用于约束展向走向。
 - 前缘闭合点不能使用独立的理论坐标点。程序沿截面扭转后的弦向正方向计算曲线 `Extremum`；若 CATIA 对密集曲线返回多个非连通极值，再以理论前缘为 `Near` 选择器取得唯一曲线点。Loft 和前缘导引样条只引用这个实际曲线点。
 
+## CATIA 特征树命名
+
+程序创建的几何特征使用英文 `snake_case` 语义名称，避免依赖 CATIA 自动生成且会随操作顺序变化的 `Point.N`、`Translate.N` 等名称。点云点使用补零序号，例如 `airfoil_cloud_point_0001`；截面相关特征使用截面 `idx` 后缀，例如 `section_rotation_1`、`leading_edge_1` 和 `trailing_edge_1`。公共辅助特征按用途命名，例如 `section_rotation_axis`、`leading_edge_guide`、`blade_loft_surface` 和 `blade_closed_solid`。
+
 更完整的字段与点序约束见[输入数据格式](input-formats.md)。
 
 ## 当前实现限制

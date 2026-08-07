@@ -28,7 +28,7 @@ section_params_dir = "section_params"
 
 ## CLI 覆盖优先级
 
-`create` 和 `batch` 的 `--output` 显式参数覆盖配置输出目录。未传该参数时，普通模式和交互模式都以 `paths.output_dir` 为默认值。翼型和截面参数文件名仍通过 `--airfoil`、`--section` 选择，但候选文件始终从配置的两个输入目录扫描。
+`create` 和 `batch` 的 `--output` 显式参数覆盖配置输出目录。未传该参数时，普通模式和交互模式都以 `paths.output_dir` 为默认值。六列截面文件通过 `--airfoil` 选择后备翼型；包含 `airfoil` 列的文件自行定义全部截面引用，不能再与 `create --airfoil` 组合。候选文件始终从配置的两个输入目录扫描。
 
 ## 输出命名模板
 
@@ -40,15 +40,16 @@ section_params_dir = "section_params"
 | `{idx}` | `section_params-` 后的标识；没有该前缀时使用截面参数文件 stem |
 | `{section}` | 截面参数文件名去除 `.csv` 后的完整 stem |
 | `{author}` | `defaults.author` |
+| `{blade}` | 模式无关的完整叶片名；单翼型为 `<airfoil>_blade-<idx>`，多翼型为 `blade-<idx>` |
 
-默认模板为 `{airfoil}_blade-{idx}`。模板必须生成单个非空文件名，不能包含目录；未知字段会在启动 CATIA 前报告错误。
+默认模板为 `{blade}`，因此现有单翼型输出名称保持不变，多翼型样例输出为 `blade-multi-airfoil`。`{airfoil}` 只在单翼型模式可用；多翼型若使用该字段会在启动 CATIA 前报告错误。模板必须生成单个非空文件名，不能包含目录；未知字段同样会提前报错。
 
 ## 查看与修改
 
 ```powershell
 uv run autoblade config show
 uv run autoblade config set --key output_dir --value generated
-uv run autoblade config set --key output_name_template --value "{airfoil}_{section}"
+uv run autoblade config set --key output_name_template --value "{blade}"
 uv run autoblade config reset
 ```
 

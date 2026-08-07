@@ -1,5 +1,6 @@
 import os
 import math
+from dataclasses import dataclass
 from pathlib import Path
 
 from ..config.manager import ConfigManager
@@ -9,8 +10,8 @@ from .input_validation import (
     AIRFOIL_QUARTER_CHORD_RATIO,
     COORDINATE_TOLERANCE_M,
     read_airfoil_csv,
-    read_section_parameters,
 )
+from .input_plan import BladeInputPlan, build_blade_input_plan
 
 CATHybridShapePointCoord = 0
 CATConstraintMode = 1
@@ -20,6 +21,16 @@ CAT_GSM_MAX = 1
 # 因此只允许在调用 COM 接口的边界执行单位换算。
 CATIA_MM_PER_METER = 1000.0
 AIRFOIL_REFERENCE_CHORD_M = 1.0
+
+
+@dataclass(frozen=True, slots=True)
+class AirfoilGeometry:
+    """一个唯一翼型在当前 CATPart 中创建的可复用基准几何。"""
+
+    body: object
+    profile: object
+    is_sharp: bool
+    trailing_edge_coords: tuple
 
 
 def meters_to_catia_mm(value_m):
@@ -32,11 +43,12 @@ def point_m_to_catia_mm(point_m):
     return tuple(meters_to_catia_mm(coordinate) for coordinate in point_m)
 
 
-def create_airfoil(part, points: list):
+def create_airfoil(part, points: list, *, feature_id: str | None = None):
     try:
+        feature_prefix = feature_id or "airfoil"
         hybrid_bodies = part.HybridBodies
         gs_airfoil = hybrid_bodies.Add()
-        gs_airfoil.Name = "airfoil"
+        gs_airfoil.Name = feature_prefix
         hybrid_shape_factory = part.HybridShapeFactory
 
         hybrid_shapes = []
@@ -46,7 +58,8 @@ def create_airfoil(part, points: list):
                 *point_m_to_catia_mm(point_m)
             )
             point.Name = (
-                f"airfoil_cloud_point_{point_index:0{point_index_width}d}"
+                f"{feature_prefix}_cloud_point_"
+                f"{point_index:0{point_index_width}d}"
             )
             gs_airfoil.AppendHybridShape(point)
             part.Update()
@@ -56,7 +69,7 @@ def create_airfoil(part, points: list):
         for point in hybrid_shapes:
             reference = part.CreateReferenceFromObject(point)
             spline.AddPoint(reference)
-        spline.Name = "airfoil_surface_spline"
+        spline.Name = f"{feature_prefix}_surface_spline"
         gs_airfoil.AppendHybridShape(spline)
         part.Update()
         print(f"[INFO] Airfoil spline created with {len(hybrid_shapes)} points.")
@@ -71,8 +84,8 @@ def create_airfoil(part, points: list):
             end_point = hybrid_shape_factory.AddNewPointCoord(
                 *point_m_to_catia_mm(last_point)
             )
-            start_point.Name = "airfoil_trailing_edge_upper"
-            end_point.Name = "airfoil_trailing_edge_lower"
+            start_point.Name = f"{feature_prefix}_trailing_edge_upper"
+            end_point.Name = f"{feature_prefix}_trailing_edge_lower"
             gs_airfoil.AppendHybridShape(start_point)
             gs_airfoil.AppendHybridShape(end_point)
             part.Update()
@@ -80,7 +93,7 @@ def create_airfoil(part, points: list):
             start_point_ref = part.CreateReferenceFromObject(start_point)
             end_point_ref = part.CreateReferenceFromObject(end_point)
             line = hybrid_shape_factory.AddNewLinePtPt(start_point_ref, end_point_ref)
-            line.Name = "airfoil_trailing_edge_closure"
+            line.Name = f"{feature_prefix}_trailing_edge_closure"
             gs_airfoil.AppendHybridShape(line)
             part.Update()
             print("[INFO] Line created to connect first and last points of airfoil cloud.")
@@ -88,7 +101,7 @@ def create_airfoil(part, points: list):
             spline_ref = part.CreateReferenceFromObject(spline)
             line_ref = part.CreateReferenceFromObject(line)
             join_feature = hybrid_shape_factory.AddNewJoin(spline_ref, line_ref)
-            join_feature.Name = "airfoil_closed_profile"
+            join_feature.Name = f"{feature_prefix}_closed_profile"
             gs_airfoil.AppendHybridShape(join_feature)
             part.Update()
             print("[INFO] Spline and line joined successfully.")
@@ -279,14 +292,18 @@ def create_section_le_te_points(
         raise Exception(f"[ERROR] Error creating LE/TE points for section {section['idx']}: {e}") from e
 
 
-def create_blade_geometry(part, airfoil, te_coords, is_sharp, section_params):
+def create_blade_geometry(
+    part,
+    airfoil_geometries: dict[str, AirfoilGeometry],
+    is_sharp,
+    section_params,
+):
     try:
         hybrid_bodies = part.HybridBodies
         gs_blade = hybrid_bodies.Add()
         gs_blade.Name = "blade_geometry"
 
         hsf = part.HybridShapeFactory
-        airfoil_ref = part.CreateReferenceFromObject(airfoil)
         origin_point = hsf.AddNewPointCoord(0, 0, 0)
         origin_point.Name = "section_transform_origin"
         gs_blade.AppendHybridShape(origin_point)
@@ -308,6 +325,11 @@ def create_blade_geometry(part, airfoil, te_coords, is_sharp, section_params):
         section_splines = []
 
         for section in section_params:
+            airfoil_filename = str(section["airfoil_filename"])
+            airfoil_geometry = airfoil_geometries[airfoil_filename]
+            airfoil_ref = part.CreateReferenceFromObject(
+                airfoil_geometry.profile
+            )
             translated = transform_airfoil_section(
                 part, airfoil_ref, x_axis_ref, origin_ref, section
             )
@@ -319,7 +341,7 @@ def create_blade_geometry(part, airfoil, te_coords, is_sharp, section_params):
                 part,
                 gs_blade,
                 translated,
-                te_coords,
+                airfoil_geometry.trailing_edge_coords,
                 section,
                 le_points,
                 te_upper_points,
@@ -327,6 +349,7 @@ def create_blade_geometry(part, airfoil, te_coords, is_sharp, section_params):
             )
 
             print(f"[INFO] Section {section['idx']}: "
+                  f"airfoil={airfoil_filename}, "
                   f"rotate={section['rotation_deg']}deg, "
                   f"chord={section['chord_m']}m, scale_factor="
                   f"{section_scale_factor(section['chord_m'])}, "
@@ -480,13 +503,19 @@ def hide_object(selection, obj):
         pass
 
 
-def hide_all_except_blade_solid(part_document, gs_airfoil, gs_blade_geometry, gs_blade_surface):
+def hide_all_except_blade_solid(
+    part_document,
+    gs_airfoils,
+    gs_blade_geometry,
+    gs_blade_surface,
+):
     try:
         selection = part_document.Selection
-        hide_object(selection, gs_airfoil)
+        for gs_airfoil in gs_airfoils:
+            hide_object(selection, gs_airfoil)
         hide_object(selection, gs_blade_geometry)
         hide_object(selection, gs_blade_surface)
-        print("[INFO] Hidden gs_airfoil, gs_blade_geometry, gs_blade_surface.")
+        print("[INFO] Hidden airfoil, blade geometry and blade surface sets.")
     except Exception as e:
         print(f"[WARNING] Error hiding objects: {e}")
 
@@ -520,6 +549,16 @@ def create_single_blade(
         section_params_dir = runtime_config.paths.section_params_dir
     if output_dir is None:
         output_dir = runtime_config.paths.output_dir
+    # 输入必须在 COM 初始化前完成解析和领域校验。这样缺列、非法数字、
+    # 点序、截面数量或跨文件引用错误不会启动昂贵且需要清理的 CATIA 进程。
+    section_params_path = Path(section_params_dir) / section_params_filename
+    input_plan = build_blade_input_plan(
+        section_params_path,
+        airfoil_dir,
+        airfoil_filename,
+        airfoil_reader=read_airfoil_csv,
+    )
+
     if output_name is None:
         template = output_name_template
         if template is None:
@@ -530,14 +569,8 @@ def create_single_blade(
             airfoil_filename,
             section_params_filename,
             author=author,
+            is_multi_airfoil=input_plan.mode == "multi",
         )
-
-    # 输入必须在 COM 初始化前完成解析和领域校验。这样缺列、非法数字、
-    # 点序或截面数量错误不会启动昂贵且需要清理的 CATIA 进程。
-    airfoil_path = Path(airfoil_dir) / airfoil_filename
-    section_params_path = Path(section_params_dir) / section_params_filename
-    points = read_airfoil_csv(airfoil_path)
-    section_params = read_section_parameters(section_params_path)
 
     # 会话上下文只覆盖 CATIA 建模、更新、保存和导出。启用失败快照时，必须
     # 在 __exit__ 关闭文档前执行 SaveAs；快照保存自身的错误只能作为附加诊断，
@@ -547,8 +580,7 @@ def create_single_blade(
             _build_and_save_blade(
                 session.part_document,
                 session.part,
-                points,
-                section_params,
+                input_plan,
                 output_dir,
                 output_name,
             )
@@ -575,15 +607,34 @@ def create_single_blade(
 def _build_and_save_blade(
     part_document,
     part,
-    points,
-    section_params,
+    input_plan: BladeInputPlan,
     output_dir,
     output_name,
 ):
     """在独立作用域内持有临时 CATIA 几何代理并完成建模与导出。"""
     # 该函数返回或因异常退栈后，几何特征代理会先于 CatiaSession.__exit__
     # 离开局部作用域，避免残留 COM 引用延迟隐藏 CATIA 进程退出。
-    gs_airfoil, airfoil, is_sharp, te_coords = create_airfoil(part, points)
+    # 每个唯一翼型只创建一套点云和基准曲线；截面循环只复用对应曲线引用。
+    airfoil_geometries: dict[str, AirfoilGeometry] = {}
+    gs_airfoils = []
+    for airfoil_input in input_plan.airfoils:
+        if input_plan.mode == "multi":
+            created = create_airfoil(
+                part,
+                list(airfoil_input.points),
+                feature_id=Path(airfoil_input.filename).stem,
+            )
+        else:
+            # 保留单翼型特征树名称，也兼容现有 COM fake 的两参数接口。
+            created = create_airfoil(part, list(airfoil_input.points))
+        gs_airfoil, profile, is_sharp, te_coords = created
+        gs_airfoils.append(gs_airfoil)
+        airfoil_geometries[airfoil_input.filename] = AirfoilGeometry(
+            body=gs_airfoil,
+            profile=profile,
+            is_sharp=is_sharp,
+            trailing_edge_coords=te_coords,
+        )
 
     (
         gs_blade_geometry,
@@ -594,10 +645,9 @@ def _build_and_save_blade(
         le_points,
     ) = create_blade_geometry(
         part,
-        airfoil,
-        te_coords,
-        is_sharp,
-        section_params,
+        airfoil_geometries,
+        input_plan.is_sharp,
+        input_plan.sections,
     )
 
     gs_blade_surface, blade_surface = create_blade_surface(
@@ -607,13 +657,13 @@ def _build_and_save_blade(
         te_upper_spline,
         te_lower_spline,
         le_points,
-        is_sharp,
+        input_plan.is_sharp,
     )
 
     create_blade_solid(part, blade_surface)
     hide_all_except_blade_solid(
         part_document,
-        gs_airfoil,
+        gs_airfoils,
         gs_blade_geometry,
         gs_blade_surface,
     )

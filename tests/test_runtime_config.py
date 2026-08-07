@@ -9,12 +9,27 @@ from catia_autoblade.utils.file_scanner import get_available_files
 from catia_autoblade.utils.output_naming import build_output_name
 
 
-def _write_config(config_dir: Path) -> ConfigManager:
+VALID_SECTIONS = """idx,scale/m,translate_x/m,translate_y/m,translate_z/m,rotate/deg
+1,0.1,0,0,0,10
+2,0.08,1,0,0,5
+"""
+
+MULTI_SECTIONS = """idx,scale/m,translate_x/m,translate_y/m,translate_z/m,rotate/deg,airfoil
+1,0.1,0,0,0,10,foil.csv
+2,0.08,1,0,0,5,foil.csv
+"""
+
+
+def _write_config(
+    config_dir: Path,
+    *,
+    output_name_template: str = "{author}_{airfoil}_{idx}",
+) -> ConfigManager:
     """创建一份路径与命名均偏离默认值的最小测试配置。"""
     config_dir.mkdir(parents=True)
     config_file = config_dir / "config.toml"
     config_file.write_text(
-        """version = "1.0.0"
+        f"""version = "1.0.0"
 
 [paths]
 input_dir = "data"
@@ -24,7 +39,7 @@ section_params_dir = "sections"
 
 [defaults]
 author = "Ada"
-output_name_template = "{author}_{airfoil}_{idx}"
+output_name_template = "{output_name_template}"
 """,
         encoding="utf-8",
     )
@@ -38,7 +53,10 @@ def _create_input_files(config_dir: Path) -> None:
     sections.mkdir(parents=True)
     (profiles / "foil.csv").touch()
     (profiles / "ignored.txt").touch()
-    (sections / "section_params-7.csv").touch()
+    (sections / "section_params-7.csv").write_text(
+        VALID_SECTIONS,
+        encoding="utf-8",
+    )
 
 
 def test_runtime_paths_are_resolved_from_config_location(tmp_path: Path) -> None:
@@ -88,9 +106,33 @@ def test_output_name_uses_configured_template_fields() -> None:
     ) == "Ada_foil_7_section_params-7"
 
 
+def test_blade_output_field_preserves_legacy_and_names_multi_airfoil() -> None:
+    assert build_output_name(
+        "{blade}",
+        "foil.csv",
+        "section_params-7.csv",
+    ) == "foil_blade-7"
+    assert build_output_name(
+        "{blade}",
+        None,
+        "section_params-multi-airfoil.csv",
+        is_multi_airfoil=True,
+    ) == "blade-multi-airfoil"
+
+
 def test_output_name_rejects_unknown_template_field() -> None:
     with pytest.raises(ValueError, match="Unsupported output name field"):
         build_output_name("{unknown}", "foil.csv", "section_params-7.csv")
+
+
+def test_multi_output_name_rejects_single_airfoil_field() -> None:
+    with pytest.raises(ValueError, match="unavailable for a multi-airfoil"):
+        build_output_name(
+            "{airfoil}_{idx}",
+            None,
+            "section_params-multi-airfoil.csv",
+            is_multi_airfoil=True,
+        )
 
 
 def test_create_command_cli_output_overrides_config(
@@ -130,6 +172,66 @@ def test_create_command_cli_output_overrides_config(
         config_dir / "data" / "sections"
     ).resolve()
     assert kwargs["keep_failed_part"] is True
+
+
+def test_create_command_uses_per_section_airfoils_without_fallback(
+    tmp_path: Path,
+) -> None:
+    config_dir = tmp_path / "project"
+    manager = _write_config(config_dir, output_name_template="{blade}")
+    _create_input_files(config_dir)
+    section_path = (
+        config_dir
+        / "data"
+        / "sections"
+        / "section_params-multi-airfoil.csv"
+    )
+    section_path.write_text(MULTI_SECTIONS, encoding="utf-8")
+    calls = []
+
+    run_create_command(
+        None,
+        section_path.name,
+        None,
+        False,
+        config_manager=manager,
+        blade_creator=lambda *args, **kwargs: calls.append((args, kwargs)),
+    )
+
+    args, _ = calls[0]
+    assert args == (
+        None,
+        "section_params-multi-airfoil.csv",
+        (config_dir / "artifacts").resolve(),
+        "blade-multi-airfoil",
+    )
+
+
+def test_create_command_rejects_fallback_for_multi_airfoil_file(
+    tmp_path: Path,
+) -> None:
+    config_dir = tmp_path / "project"
+    manager = _write_config(config_dir, output_name_template="{blade}")
+    _create_input_files(config_dir)
+    section_path = (
+        config_dir
+        / "data"
+        / "sections"
+        / "section_params-multi-airfoil.csv"
+    )
+    section_path.write_text(MULTI_SECTIONS, encoding="utf-8")
+    calls = []
+
+    run_create_command(
+        "foil.csv",
+        section_path.name,
+        None,
+        False,
+        config_manager=manager,
+        blade_creator=lambda *args, **kwargs: calls.append((args, kwargs)),
+    )
+
+    assert calls == []
 
 
 def test_batch_command_uses_configured_output_and_template(tmp_path: Path) -> None:
@@ -173,13 +275,19 @@ def test_batch_core_applies_template_to_each_output(
     def fake_create(*args, **kwargs):
         calls.append((args, kwargs))
 
+    section_dir = tmp_path / "sections"
+    section_dir.mkdir()
+    (section_dir / "section_params-7.csv").write_text(
+        VALID_SECTIONS,
+        encoding="utf-8",
+    )
     monkeypatch.setattr(batch_module, "create_single_blade", fake_create)
     batch_module.batch_create_blades(
         ["foil.csv"],
         ["section_params-7.csv"],
         tmp_path / "artifacts",
         airfoil_dir=tmp_path / "profiles",
-        section_params_dir=tmp_path / "sections",
+        section_params_dir=section_dir,
         output_name_template="{author}_{airfoil}_{idx}",
         author="Ada",
     )
@@ -190,3 +298,43 @@ def test_batch_core_applies_template_to_each_output(
         "airfoil_dir": tmp_path / "profiles",
         "section_params_dir": tmp_path / "sections",
     }
+
+
+def test_batch_core_creates_multi_airfoil_section_file_only_once(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from catia_autoblade.core import batch as batch_module
+
+    section_dir = tmp_path / "sections"
+    section_dir.mkdir()
+    (section_dir / "section_params-multi-airfoil.csv").write_text(
+        MULTI_SECTIONS,
+        encoding="utf-8",
+    )
+    calls = []
+    monkeypatch.setattr(
+        batch_module,
+        "create_single_blade",
+        lambda *args, **kwargs: calls.append((args, kwargs)),
+    )
+
+    results = batch_module.batch_create_blades(
+        ["foil.csv", "other.csv"],
+        ["section_params-multi-airfoil.csv"],
+        tmp_path / "artifacts",
+        airfoil_dir=tmp_path / "profiles",
+        section_params_dir=section_dir,
+        output_name_template="{blade}",
+        author="",
+    )
+
+    assert len(calls) == 1
+    args, _ = calls[0]
+    assert args[:4] == (
+        None,
+        "section_params-multi-airfoil.csv",
+        tmp_path / "artifacts" / "section_params-multi-airfoil",
+        "blade-multi-airfoil",
+    )
+    assert results[0]["mode"] == "multi"

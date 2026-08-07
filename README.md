@@ -6,17 +6,18 @@ CATIA AutoBlade is a Windows command-line tool that builds 3D blade models in CA
 
 ## Status
 
-The project is an early working prototype. The single-airfoil workflow has been exercised successfully with CATIA P3 V5-6R2020, and batch generation is available as a Cartesian product of airfoil files and section-parameter files.
+The project is an early working prototype. The single-airfoil workflow has been exercised successfully with CATIA P3 V5-6R2020. Legacy batch jobs use the Cartesian product of airfoil and section-parameter files, while a section file with an `airfoil` column defines one self-contained multi-airfoil blade job.
 
-The current implementation uses one airfoil for every section of a blade. Per-section airfoil selection, including the optional `airfoil` column found in newer input data, is not supported yet.
+Per-section airfoil parsing, validation, deduplicated base-geometry creation, and section selection are implemented. The 89-section sample using three different point counts has completed Loft, solid closing, CATPart saving, and STEP AP242 export with CATIA P3 V5-6R2020.
 
-The stable single-airfoil milestone is complete. The current milestone extends the geometry model to select different airfoils across blade sections. See [TODO.md](TODO.md) for the active acceptance checklist.
+The stable single-airfoil and spanwise multi-airfoil milestones are complete. See [TODO.md](TODO.md) for the remaining engineering-consistency work.
 
 ## Scope
 
 CATIA AutoBlade currently provides:
 
 - airfoil spline creation from CSV point clouds;
+- per-section airfoil selection with unique-profile reuse;
 - section scaling, translation, and twist;
 - sharp and blunt trailing-edge handling;
 - guided loft creation and surface closing;
@@ -55,10 +56,16 @@ Create one blade:
 uv run autoblade create --airfoil sc1095.csv --section section_params-1.csv
 ```
 
+Create the repository multi-airfoil sample without a fallback `--airfoil`:
+
+```powershell
+uv run autoblade create --section section_params-multi-airfoil.csv
+```
+
 Use `--keep-failed-part` to save a `*_failed.CATPart` for debugging modeling
 failures.
 
-Create all selected combinations:
+Create planned batch jobs; legacy section files use the selected airfoil combinations, while each multi-airfoil section file runs once:
 
 ```powershell
 uv run autoblade batch --airfoil sc1095.csv

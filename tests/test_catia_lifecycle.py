@@ -5,6 +5,7 @@ import pytest
 from catia_autoblade.core import batch as batch_module
 from catia_autoblade.core import create_blade as create_module
 from catia_autoblade.core.catia_session import CatiaCleanupError, CatiaSession
+from catia_autoblade.core.input_plan import AirfoilInput, BladeInputPlan
 
 
 class FakePart:
@@ -138,11 +139,27 @@ class LifecycleHarness:
 
 def _patch_successful_geometry(monkeypatch: pytest.MonkeyPatch) -> None:
     """把几何操作替换为稳定返回值，仅保留生命周期与真实保存流程。"""
-    monkeypatch.setattr(create_module, "read_airfoil_csv", lambda path: [object()])
+    input_plan = BladeInputPlan(
+        mode="single",
+        section_params_path=Path("section_params-1.csv"),
+        sections=(
+            {"idx": 1, "airfoil_filename": "foil.csv"},
+            {"idx": 2, "airfoil_filename": "foil.csv"},
+        ),
+        airfoils=(
+            AirfoilInput(
+                filename="foil.csv",
+                path=Path("foil.csv"),
+                points=(object(),),
+                is_sharp=True,
+            ),
+        ),
+        is_sharp=True,
+    )
     monkeypatch.setattr(
         create_module,
-        "read_section_parameters",
-        lambda path: [{"idx": 1}, {"idx": 2}],
+        "build_blade_input_plan",
+        lambda *args, **kwargs: input_plan,
     )
     monkeypatch.setattr(
         create_module,
@@ -375,6 +392,11 @@ def test_batch_failure_closes_every_owned_application(
                 raise RuntimeError("batch item failed")
 
     monkeypatch.setattr(batch_module, "create_single_blade", fake_create)
+    monkeypatch.setattr(
+        batch_module,
+        "inspect_section_mode",
+        lambda path: "single",
+    )
     results = batch_module.batch_create_blades(
         ["foil.csv"],
         ["section_params-bad.csv", "section_params-good.csv"],

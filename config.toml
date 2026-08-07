@@ -8,4 +8,4 @@ section_params_dir = "section_params"
 
 [defaults]
 author = ""
-output_name_template = "{airfoil}_blade-{idx}"
+output_name_template = "{blade}"

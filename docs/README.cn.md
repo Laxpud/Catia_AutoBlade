@@ -6,17 +6,18 @@ CATIA AutoBlade 是一个 Windows 命令行工具，用于根据翼型点云和�
 
 ## 当前状态
 
-项目目前处于可工作的早期原型阶段。单翼型流程已经在 CATIA P3 V5-6R2020 环境中成功运行；批处理支持对翼型文件和截面参数文件执行笛卡尔积组合建模。
+项目目前处于可工作的早期原型阶段。单翼型流程已经在 CATIA P3 V5-6R2020 环境中成功运行。旧版单翼型批处理仍按翼型与截面参数做笛卡尔积；包含 `airfoil` 列的截面文件则独立定义一个多翼型叶片任务。
 
-当前实现要求一片叶片的所有截面使用同一个翼型。较新输入数据中出现的可选 `airfoil` 列尚未用于逐截面选择翼型。
+逐截面翼型解析、输入校验、唯一基准几何复用和截面选择已经实现。使用三种不同点数翼型的 89 截面样例已在 CATIA P3 V5-6R2020 中完成 Loft、实体封闭、CATPart 保存和 STEP AP242 导出。
 
-稳定单翼型建模里程碑已经完成。当前里程碑将扩展几何模型，使叶片不同截面能够选择不同翼型。活动任务和验收条件见 [TODO.md](../TODO.md)。
+稳定单翼型和展向多翼型里程碑均已完成。剩余的工程一致性工作见 [TODO.md](../TODO.md)。
 
 ## 功能范围
 
 CATIA AutoBlade 当前提供：
 
 - 根据 CSV 点云创建翼型样条；
+- 按截面选择翼型并复用唯一基准几何；
 - 截面缩放、平移和扭转；
 - 尖后缘和钝后缘处理；
 - 带导引线的 Loft 曲面及封闭实体；
@@ -55,9 +56,15 @@ uv run autoblade list
 uv run autoblade create --airfoil sc1095.csv --section section_params-1.csv
 ```
 
+不传后备 `--airfoil`，直接创建仓库中的多翼型样例：
+
+```powershell
+uv run autoblade create --section section_params-multi-airfoil.csv
+```
+
 建模失败时可使用 `--keep-failed-part` 保留 `*_failed.CATPart` 以便排查。
 
-创建所有选定组合：
+创建规划后的批处理任务；旧版截面文件使用所选翼型组合，每个多翼型截面文件只运行一次：
 
 ```powershell
 uv run autoblade batch --airfoil sc1095.csv

@@ -29,4 +29,15 @@ def run_list_command(
         print("\n[INFO] Available section params files:")
         for f in section_params_files:
             print(f"  - {f}")
-        print(f"\n[INFO] Total combinations: {len(airfoil_files)} x {len(section_params_files)} = {len(airfoil_files) * len(section_params_files)}")
+        try:
+            from ..core.batch import plan_batch_jobs
+
+            jobs = plan_batch_jobs(
+                airfoil_files,
+                section_params_files,
+                section_params_dir=config.paths.section_params_dir,
+            )
+        except Exception as error:
+            print(f"\n[ERROR] Cannot plan blade tasks: {error}")
+            return
+        print(f"\n[INFO] Planned blade tasks: {len(jobs)}")

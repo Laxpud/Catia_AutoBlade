@@ -1,5 +1,6 @@
 import csv
 import math
+from dataclasses import dataclass
 from pathlib import Path
 
 
@@ -14,6 +15,18 @@ SECTION_PARAMETER_FIELDS = (
     "rotate/deg",
 )
 COORDINATE_TOLERANCE_M = 1e-9
+
+
+SectionParameters = dict[str, float | int | str]
+
+
+@dataclass(frozen=True, slots=True)
+class SectionParameterTable:
+    """保留截面字段模式和源行号的预检结果。"""
+
+    sections: tuple[SectionParameters, ...]
+    source_lines: tuple[int, ...]
+    has_airfoil_column: bool
 
 
 class InputValidationError(ValueError):
@@ -73,16 +86,27 @@ def read_airfoil_csv(csv_path: str | Path) -> list[tuple[float, float, float]]:
     return points
 
 
-def read_section_parameters(csv_path: str | Path) -> list[dict[str, float | int]]:
+def read_section_parameters(csv_path: str | Path) -> list[SectionParameters]:
     """校验截面参数 CSV，并返回建模使用的标准字段。"""
+    table = read_section_parameter_table(csv_path)
+    return [dict(section) for section in table.sections]
+
+
+def read_section_parameter_table(csv_path: str | Path) -> SectionParameterTable:
+    """解析截面表，并保留多翼型模式和错误定位所需的源行号。"""
     path = Path(csv_path)
-    sections: list[dict[str, float | int]] = []
+    sections: list[SectionParameters] = []
+    source_lines: list[int] = []
     previous_idx: int | None = None
+    has_airfoil_column = False
 
     try:
         with path.open("r", encoding="utf-8-sig", newline="") as file:
             reader = csv.DictReader(file)
             _validate_header(path, reader.fieldnames, SECTION_PARAMETER_FIELDS)
+            has_airfoil_column = (
+                reader.fieldnames is not None and "airfoil" in reader.fieldnames
+            )
             for row in reader:
                 line = reader.line_num
                 if _is_blank_row(row):
@@ -112,7 +136,7 @@ def read_section_parameters(csv_path: str | Path) -> list[dict[str, float | int]
                         field="scale/m",
                     )
 
-                sections.append({
+                section: SectionParameters = {
                     "idx": idx,
                     "chord_m": chord_m,
                     "translate_x_m": _parse_float(
@@ -125,7 +149,20 @@ def read_section_parameters(csv_path: str | Path) -> list[dict[str, float | int]
                         path, row, line, "translate_z/m"
                     ),
                     "rotation_deg": _parse_float(path, row, line, "rotate/deg"),
-                })
+                }
+                if has_airfoil_column:
+                    raw_airfoil = row.get("airfoil")
+                    if not isinstance(raw_airfoil, str) or not raw_airfoil:
+                        raise InputValidationError(
+                            path,
+                            "expected a non-empty airfoil filename",
+                            line=line,
+                            field="airfoil",
+                        )
+                    section["airfoil_filename"] = raw_airfoil
+
+                sections.append(section)
+                source_lines.append(line)
                 previous_idx = idx
     except (OSError, UnicodeError, csv.Error) as error:
         raise InputValidationError(
@@ -140,7 +177,11 @@ def read_section_parameters(csv_path: str | Path) -> list[dict[str, float | int]
         )
 
     print(f"[INFO] Validated {len(sections)} section rows from {path}.")
-    return sections
+    return SectionParameterTable(
+        sections=tuple(sections),
+        source_lines=tuple(source_lines),
+        has_airfoil_column=has_airfoil_column,
+    )
 
 
 def _validate_header(

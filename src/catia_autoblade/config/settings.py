@@ -17,7 +17,7 @@ class DefaultsConfig(BaseModel):
     """不由 CLI 显式指定时采用的运行默认值。"""
 
     author: str = ""
-    output_name_template: str = "{airfoil}_blade-{idx}"
+    output_name_template: str = "{blade}"
 
 
 class AppConfig(BaseModel):

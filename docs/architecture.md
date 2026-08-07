@@ -21,18 +21,19 @@ Typer CLI
 - `catia_autoblade.commands`：把 CLI 输入转换为核心函数参数，不应包含 CATIA 几何规则。
 - `catia_autoblade.core.catia_session`：独占 CATIA 实例并管理文档与 COM 生命周期。
 - `catia_autoblade.core.input_validation`：在启动 CATIA 前解析 CSV 并执行数据契约校验。
+- `catia_autoblade.core.input_plan`：解析受限跨文件引用，生成有序截面、唯一翼型和后缘拓扑计划。
 - `catia_autoblade.core.create_blade`：单叶片建模主流程和 CATIA COM 操作。
-- `catia_autoblade.core.batch`：组合翼型与参数文件，逐个调用单叶片流程。
+- `catia_autoblade.core.batch`：按单/多翼型模式展开实际任务，逐个调用单叶片流程。
 - `catia_autoblade.config`：配置模型、TOML 持久化及运行时绝对路径解析。
 - `catia_autoblade.utils.file_scanner`：从配置的输入目录发现 CSV 文件。
 
 ## 单叶片建模流程
 
-1. 解析并校验翼型和截面参数 CSV；任何输入错误在初始化 COM 前终止。
+1. 解析截面模式和逐截面引用，构造包含有序截面、唯一翼型及后缘拓扑的输入计划；任何跨文件或领域错误在初始化 COM 前终止。
 2. 初始化 COM，通过 `DispatchEx` 启动当前任务独占的隐藏 `CATIA.Application`，创建空 `Part` 文档。
-3. 将以 m 表示、弦长为 1 m 的基准翼型弦向坐标反向并平移，使 X 轴成为 1/4 弦线。
-4. 在 `airfoil` 几何集中创建点和样条；钝后缘额外增加封口直线和 Join。
-5. 对已校验的截面参数依次执行绕 X 轴旋转、相对原点缩放和三维平移。
+3. 将每个唯一翼型转换为以 m 表示、弦长为 1 m、X 轴位于 1/4 弦线的模型坐标；重复引用不会重复解析。
+4. 为每个唯一翼型创建一套点云和基准样条；钝后缘额外增加封口直线和 Join。
+5. 每个截面按 `airfoil_filename` 选择基准曲线，再依次执行绕 X 轴旋转、相对原点缩放和三维平移。
 6. 从每条实际截面曲线提取前缘点，按输入端点变换生成后缘点，并用它们建立纵向导引样条。
 7. 以变换后的截面为 Loft 截面，以前缘和后缘样条为导引线生成叶片曲面。
 8. 使用 `CloseSurface` 将封闭曲面转换为实体。
@@ -54,7 +55,7 @@ Typer CLI
 
 ## 批处理模型
 
-批处理对选中的翼型文件和截面参数文件执行笛卡尔积。每个组合都会重新进入完整的单叶片流程，并输出到配置输出根目录下以翼型名称命名的子目录。单模型和批处理共享 `defaults.output_name_template`。
+批处理先检查每个截面文件的模式。六列单翼型文件继续与选中的翼型文件执行笛卡尔积；包含 `airfoil` 列的多翼型文件只生成一个任务，不参与笛卡尔积。单翼型结果按翼型名称分目录，多翼型结果按截面参数文件 stem 分目录；两种模式共享 `defaults.output_name_template`。
 
 当前没有共享 CATIA 会话、失败重试、事务式输出或断点续跑。某一组合失败会先释放其独立 CATIA 会话、记录失败结果，然后继续处理其他组合。
 
@@ -70,12 +71,12 @@ Typer CLI
 
 ## CATIA 特征树命名
 
-程序创建的几何特征使用英文 `snake_case` 语义名称，避免依赖 CATIA 自动生成且会随操作顺序变化的 `Point.N`、`Translate.N` 等名称。点云点使用补零序号，例如 `airfoil_cloud_point_0001`；截面相关特征使用截面 `idx` 后缀，例如 `section_rotation_1`、`leading_edge_1` 和 `trailing_edge_1`。公共辅助特征按用途命名，例如 `section_rotation_axis`、`leading_edge_guide`、`blade_loft_surface` 和 `blade_closed_solid`。
+程序创建的几何特征使用英文 `snake_case` 语义名称，避免依赖 CATIA 自动生成且会随操作顺序变化的 `Point.N`、`Translate.N` 等名称。单翼型点云继续使用 `airfoil_cloud_point_0001`；多翼型点云增加翼型 stem，例如 `airfoil1_sharp_cloud_point_0001`。截面相关特征使用截面 `idx` 后缀，例如 `section_rotation_1`、`leading_edge_1` 和 `trailing_edge_1`。公共辅助特征按用途命名，例如 `section_rotation_axis`、`leading_edge_guide`、`blade_loft_surface` 和 `blade_closed_solid`。
 
 更完整的字段与点序约束见[输入数据格式](input-formats.md)。
 
 ## 当前实现限制
 
-- 一片叶片只能复用一个基准翼型，截面参数中的 `airfoil` 扩展列会被忽略。
+- 同一叶片暂不支持混合尖后缘与钝后缘翼型。
 - 尖后缘通过首尾坐标精确相等判断，没有浮点容差。
 - 建模核心直接依赖动态 COM 对象，尚未形成便于单元测试的适配器边界。

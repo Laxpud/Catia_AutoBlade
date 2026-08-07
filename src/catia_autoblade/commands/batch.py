@@ -19,6 +19,9 @@ def run_batch_command(
         section_params_dir=config.paths.section_params_dir,
     )
 
+    from ..core.batch import plan_batch_jobs
+    from ..core.input_plan import inspect_section_mode
+
     if list_files:
         print("[INFO] Available airfoil files:")
         for f in airfoil_files:
@@ -26,7 +29,16 @@ def run_batch_command(
         print("\n[INFO] Available section params files:")
         for f in section_params_files:
             print(f"  - {f}")
-        print(f"\n[INFO] Total combinations: {len(airfoil_files)} x {len(section_params_files)} = {len(airfoil_files) * len(section_params_files)}")
+        try:
+            jobs = plan_batch_jobs(
+                airfoil_files,
+                section_params_files,
+                section_params_dir=config.paths.section_params_dir,
+            )
+        except Exception as error:
+            print(f"\n[ERROR] Cannot plan batch tasks: {error}")
+            return
+        print(f"\n[INFO] Planned blade tasks: {len(jobs)}")
         return
 
     if interactive:
@@ -36,15 +48,10 @@ def run_batch_command(
             select_sections,
         )
 
-        if not airfoil_files:
-            print("[ERROR] No airfoil files found.")
-            return
-
         if not section_params_files:
             print("[ERROR] No section params files found.")
             return
 
-        selected_airfoil = select_airfoil(airfoil_files)
         selected_sections = select_sections(section_params_files, multi=True)
         output_default = (
             manager.resolve_cli_path(output) if output else config.paths.output_dir
@@ -53,8 +60,24 @@ def run_batch_command(
             confirm_output_dir(str(output_default))
         )
 
-        airfoil_list = [selected_airfoil] if selected_airfoil in airfoil_files else []
         section_list = [s for s in selected_sections if s in section_params_files]
+        try:
+            has_legacy_sections = any(
+                inspect_section_mode(config.paths.section_params_dir / section)
+                == "single"
+                for section in section_list
+            )
+        except Exception as error:
+            print(f"[ERROR] Invalid section params file: {error}")
+            return
+        if has_legacy_sections:
+            if not airfoil_files:
+                print("[ERROR] No airfoil files found for single-airfoil tasks.")
+                return
+            selected_airfoil = select_airfoil(airfoil_files)
+            airfoil_list = [selected_airfoil]
+        else:
+            airfoil_list = []
     else:
         output_dir = (
             manager.resolve_cli_path(output) if output else config.paths.output_dir
@@ -76,7 +99,16 @@ def run_batch_command(
         else:
             section_list = section_params_files
 
-    print(f"[INFO] Batch processing: {len(airfoil_list)} airfoil(s) x {len(section_list)} section param(s) = {len(airfoil_list) * len(section_list)} blade(s)")
+    try:
+        jobs = plan_batch_jobs(
+            airfoil_list,
+            section_list,
+            section_params_dir=config.paths.section_params_dir,
+        )
+    except Exception as error:
+        print(f"[ERROR] Cannot plan batch tasks: {error}")
+        return
+    print(f"[INFO] Batch processing: {len(jobs)} planned blade task(s)")
 
     try:
         if batch_processor is None:

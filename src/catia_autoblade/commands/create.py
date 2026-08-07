@@ -28,15 +28,10 @@ def run_create_command(
             select_sections,
         )
 
-        if not airfoil_files:
-            print("[ERROR] No airfoil files found.")
-            return
-
         if not section_params_files:
             print("[ERROR] No section params files found.")
             return
 
-        selected_airfoil = select_airfoil(airfoil_files)
         selected_section = select_sections(section_params_files, multi=False)[0]
         output_default = (
             manager.resolve_cli_path(output) if output else configured_output_dir
@@ -45,37 +40,65 @@ def run_create_command(
             confirm_output_dir(str(output_default))
         )
     else:
-        if not airfoil_files:
-            print("[ERROR] No airfoil files found.")
-            return
-
         if not section_params_files:
             print("[ERROR] No section params files found.")
             return
 
-        selected_airfoil = airfoil if airfoil else airfoil_files[0]
         selected_section = section if section else section_params_files[0]
         output_dir = (
             manager.resolve_cli_path(output) if output else configured_output_dir
         )
 
-    if selected_airfoil not in airfoil_files:
-        print(f"[ERROR] Airfoil file '{selected_airfoil}' not found.")
-        return
-
     if selected_section not in section_params_files:
         print(f"[ERROR] Section params file '{selected_section}' not found.")
         return
 
-    print("\n[INFO] Creating single blade...")
-    print(f"[INFO] Airfoil: {selected_airfoil}, Section: {selected_section}")
+    try:
+        from ..core.input_plan import inspect_section_mode
 
-    output_name = build_output_name(
-        config.defaults.output_name_template,
-        selected_airfoil,
-        selected_section,
-        author=config.defaults.author,
-    )
+        section_mode = inspect_section_mode(
+            config.paths.section_params_dir / selected_section
+        )
+    except Exception as error:
+        print(f"[ERROR] Invalid section params file: {error}")
+        return
+
+    if section_mode == "multi":
+        if airfoil is not None:
+            print(
+                "[ERROR] --airfoil cannot be used when the section file "
+                "contains an airfoil column."
+            )
+            return
+        selected_airfoil = None
+    else:
+        if not airfoil_files:
+            print("[ERROR] No airfoil files found.")
+            return
+        selected_airfoil = (
+            select_airfoil(airfoil_files)
+            if interactive
+            else (airfoil if airfoil else airfoil_files[0])
+        )
+        if selected_airfoil not in airfoil_files:
+            print(f"[ERROR] Airfoil file '{selected_airfoil}' not found.")
+            return
+
+    print("\n[INFO] Creating single blade...")
+    airfoil_label = selected_airfoil or "per-section references"
+    print(f"[INFO] Airfoil: {airfoil_label}, Section: {selected_section}")
+
+    try:
+        output_name = build_output_name(
+            config.defaults.output_name_template,
+            selected_airfoil,
+            selected_section,
+            author=config.defaults.author,
+            is_multi_airfoil=section_mode == "multi",
+        )
+    except Exception as error:
+        print(f"[ERROR] Invalid output naming configuration: {error}")
+        return
 
     try:
         if blade_creator is None:

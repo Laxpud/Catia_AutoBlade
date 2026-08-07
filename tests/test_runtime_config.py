@@ -2,9 +2,12 @@ from pathlib import Path
 
 import pytest
 
-from catia_autoblade.commands.batch import run_batch_command
+from catia_autoblade.commands.batch import BatchBuildError, run_batch_command
 from catia_autoblade.commands.create import run_create_command
 from catia_autoblade.config.manager import ConfigManager
+from catia_autoblade.core.jobs import BuildResult
+from catia_autoblade.core.input_validation import InputValidationError
+from catia_autoblade.interactive.prompts import PromptCancelled
 from catia_autoblade.utils.file_scanner import get_available_files
 from catia_autoblade.utils.output_naming import build_output_name
 
@@ -17,6 +20,14 @@ VALID_SECTIONS = """idx,scale/m,translate_x/m,translate_y/m,translate_z/m,rotate
 MULTI_SECTIONS = """idx,scale/m,translate_x/m,translate_y/m,translate_z/m,rotate/deg,airfoil
 1,0.1,0,0,0,10,foil.csv
 2,0.08,1,0,0,5,foil.csv
+"""
+
+SHARP_AIRFOIL = """x,y,z
+0,1,0
+0,0.5,0.1
+0,0,0
+0,0.5,-0.1
+0,1,0
 """
 
 
@@ -51,7 +62,7 @@ def _create_input_files(config_dir: Path) -> None:
     sections = config_dir / "data" / "sections"
     profiles.mkdir(parents=True)
     sections.mkdir(parents=True)
-    (profiles / "foil.csv").touch()
+    (profiles / "foil.csv").write_text(SHARP_AIRFOIL, encoding="utf-8")
     (profiles / "ignored.txt").touch()
     (sections / "section_params-7.csv").write_text(
         VALID_SECTIONS,
@@ -172,6 +183,7 @@ def test_create_command_cli_output_overrides_config(
         config_dir / "data" / "sections"
     ).resolve()
     assert kwargs["keep_failed_part"] is True
+    assert kwargs["input_plan"].mode == "single"
 
 
 def test_create_command_uses_per_section_airfoils_without_fallback(
@@ -198,13 +210,14 @@ def test_create_command_uses_per_section_airfoils_without_fallback(
         blade_creator=lambda *args, **kwargs: calls.append((args, kwargs)),
     )
 
-    args, _ = calls[0]
+    args, kwargs = calls[0]
     assert args == (
         None,
         "section_params-multi-airfoil.csv",
         (config_dir / "artifacts").resolve(),
         "blade-multi-airfoil",
     )
+    assert kwargs["input_plan"].mode == "multi"
 
 
 def test_create_command_rejects_fallback_for_multi_airfoil_file(
@@ -222,14 +235,87 @@ def test_create_command_rejects_fallback_for_multi_airfoil_file(
     section_path.write_text(MULTI_SECTIONS, encoding="utf-8")
     calls = []
 
-    run_create_command(
-        "foil.csv",
-        section_path.name,
-        None,
-        False,
-        config_manager=manager,
-        blade_creator=lambda *args, **kwargs: calls.append((args, kwargs)),
+    with pytest.raises(ValueError, match="cannot be used"):
+        run_create_command(
+            "foil.csv",
+            section_path.name,
+            None,
+            False,
+            config_manager=manager,
+            blade_creator=lambda *args, **kwargs: calls.append((args, kwargs)),
+        )
+
+    assert calls == []
+
+
+def test_create_command_requires_airfoil_for_six_column_file(
+    tmp_path: Path,
+) -> None:
+    config_dir = tmp_path / "project"
+    manager = _write_config(config_dir)
+    _create_input_files(config_dir)
+    calls = []
+
+    with pytest.raises(InputValidationError, match="require an airfoil"):
+        run_create_command(
+            None,
+            "section_params-7.csv",
+            None,
+            False,
+            config_manager=manager,
+            blade_creator=lambda *args, **kwargs: calls.append((args, kwargs)),
+        )
+
+    assert calls == []
+
+
+def test_create_command_rejects_missing_explicit_airfoil(tmp_path: Path) -> None:
+    config_dir = tmp_path / "project"
+    manager = _write_config(config_dir)
+    _create_input_files(config_dir)
+
+    with pytest.raises(ValueError, match="Airfoil file not found"):
+        run_create_command(
+            "missing.csv",
+            "section_params-7.csv",
+            None,
+            False,
+            config_manager=manager,
+        )
+
+
+def test_interactive_create_cancels_before_executor(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from catia_autoblade.interactive import prompts
+
+    config_dir = tmp_path / "project"
+    manager = _write_config(config_dir)
+    _create_input_files(config_dir)
+    calls = []
+    monkeypatch.setattr(
+        prompts,
+        "confirm_output_dir",
+        lambda default: config_dir / "artifacts",
     )
+    monkeypatch.setattr(
+        prompts,
+        "confirm_execution",
+        lambda: (_ for _ in ()).throw(
+            PromptCancelled("Build was cancelled before CATIA started.")
+        ),
+    )
+
+    with pytest.raises(PromptCancelled, match="before CATIA started"):
+        run_create_command(
+            "foil.csv",
+            "section_params-7.csv",
+            None,
+            True,
+            config_manager=manager,
+            blade_creator=lambda *args, **kwargs: calls.append((args, kwargs)),
+        )
 
     assert calls == []
 
@@ -240,9 +326,9 @@ def test_batch_command_uses_configured_output_and_template(tmp_path: Path) -> No
     _create_input_files(config_dir)
     calls = []
 
-    def fake_batch(*args, **kwargs):
-        calls.append((args, kwargs))
-        return [{"status": "success"}]
+    def fake_batch(jobs):
+        calls.extend(jobs)
+        return [BuildResult(job=job, status="success") for job in jobs]
 
     run_batch_command(
         "foil.csv",
@@ -254,14 +340,46 @@ def test_batch_command_uses_configured_output_and_template(tmp_path: Path) -> No
         batch_processor=fake_batch,
     )
 
-    args, kwargs = calls[0]
-    assert args == (
-        ["foil.csv"],
-        ["section_params-7.csv"],
-        (config_dir / "artifacts").resolve(),
+    job = calls[0]
+    assert job.airfoil_filename == "foil.csv"
+    assert job.section_params_filename == "section_params-7.csv"
+    assert job.output_dir == (config_dir / "artifacts" / "foil").resolve()
+    assert job.output_name == "Ada_foil_7"
+    assert job.input_plan.mode == "single"
+
+
+def test_batch_command_raises_after_reporting_partial_failure(
+    tmp_path: Path,
+) -> None:
+    config_dir = tmp_path / "project"
+    manager = _write_config(config_dir)
+    _create_input_files(config_dir)
+    section_dir = config_dir / "data" / "sections"
+    (section_dir / "section_params-8.csv").write_text(
+        VALID_SECTIONS,
+        encoding="utf-8",
     )
-    assert kwargs["output_name_template"] == "{author}_{airfoil}_{idx}"
-    assert kwargs["author"] == "Ada"
+
+    def fake_batch(jobs):
+        return [
+            BuildResult(job=jobs[0], status="failed", error="model failed"),
+            BuildResult(job=jobs[1], status="success"),
+        ]
+
+    with pytest.raises(BatchBuildError) as raised:
+        run_batch_command(
+            "foil.csv",
+            None,
+            None,
+            False,
+            False,
+            config_manager=manager,
+            batch_processor=fake_batch,
+        )
+
+    assert [
+        result.status for result in raised.value.results
+    ] == ["failed", "success"]
 
 
 def test_batch_core_applies_template_to_each_output(
@@ -281,12 +399,15 @@ def test_batch_core_applies_template_to_each_output(
         VALID_SECTIONS,
         encoding="utf-8",
     )
+    profile_dir = tmp_path / "profiles"
+    profile_dir.mkdir()
+    (profile_dir / "foil.csv").write_text(SHARP_AIRFOIL, encoding="utf-8")
     monkeypatch.setattr(batch_module, "create_single_blade", fake_create)
     batch_module.batch_create_blades(
         ["foil.csv"],
         ["section_params-7.csv"],
         tmp_path / "artifacts",
-        airfoil_dir=tmp_path / "profiles",
+        airfoil_dir=profile_dir,
         section_params_dir=section_dir,
         output_name_template="{author}_{airfoil}_{idx}",
         author="Ada",
@@ -294,10 +415,10 @@ def test_batch_core_applies_template_to_each_output(
 
     args, kwargs = calls[0]
     assert args[3] == "Ada_foil_7"
-    assert kwargs == {
-        "airfoil_dir": tmp_path / "profiles",
-        "section_params_dir": tmp_path / "sections",
-    }
+    assert kwargs["airfoil_dir"] == profile_dir.resolve()
+    assert kwargs["section_params_dir"] == section_dir.resolve()
+    assert kwargs["keep_failed_part"] is False
+    assert kwargs["input_plan"].mode == "single"
 
 
 def test_batch_core_creates_multi_airfoil_section_file_only_once(
@@ -312,6 +433,9 @@ def test_batch_core_creates_multi_airfoil_section_file_only_once(
         MULTI_SECTIONS,
         encoding="utf-8",
     )
+    profile_dir = tmp_path / "profiles"
+    profile_dir.mkdir()
+    (profile_dir / "foil.csv").write_text(SHARP_AIRFOIL, encoding="utf-8")
     calls = []
     monkeypatch.setattr(
         batch_module,
@@ -323,7 +447,7 @@ def test_batch_core_creates_multi_airfoil_section_file_only_once(
         ["foil.csv", "other.csv"],
         ["section_params-multi-airfoil.csv"],
         tmp_path / "artifacts",
-        airfoil_dir=tmp_path / "profiles",
+        airfoil_dir=profile_dir,
         section_params_dir=section_dir,
         output_name_template="{blade}",
         author="",
@@ -338,3 +462,27 @@ def test_batch_core_creates_multi_airfoil_section_file_only_once(
         "blade-multi-airfoil",
     )
     assert results[0]["mode"] == "multi"
+
+
+def test_batch_core_rejects_multiple_airfoils_for_six_column_templates(
+    tmp_path: Path,
+) -> None:
+    from catia_autoblade.core import batch as batch_module
+
+    section_dir = tmp_path / "sections"
+    section_dir.mkdir()
+    (section_dir / "section_params-7.csv").write_text(
+        VALID_SECTIONS,
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="belong to sweep"):
+        batch_module.batch_create_blades(
+            ["foil.csv", "other.csv"],
+            ["section_params-7.csv"],
+            tmp_path / "artifacts",
+            airfoil_dir=tmp_path / "profiles",
+            section_params_dir=section_dir,
+            output_name_template="{blade}",
+            author="",
+        )

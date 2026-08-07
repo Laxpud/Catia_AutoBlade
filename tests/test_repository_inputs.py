@@ -13,11 +13,16 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 AIRFOIL_DIR = PROJECT_ROOT / "input" / "airfoils"
 SECTION_PARAMS_DIR = PROJECT_ROOT / "input" / "section_params"
 MULTI_AIRFOIL_SAMPLE = SECTION_PARAMS_DIR / "section_params-multi-airfoil.csv"
+ZERO_TRANSLATION_SAMPLE = SECTION_PARAMS_DIR / "section_params-naca.csv"
 CANONICAL_INPUT_NAME = re.compile(r"[a-z0-9][a-z0-9_-]*\.csv")
 EXPECTED_MULTI_AIRFOILS = (
     "airfoil1_sharp.csv",
     "airfoil2_sharp.csv",
     "airfoil3_sharp.csv",
+)
+BATCH_REGRESSION_FILES = tuple(
+    SECTION_PARAMS_DIR / f"section_params-{index}.csv"
+    for index in range(1, 6)
 )
 
 
@@ -71,3 +76,27 @@ def test_multi_airfoil_sample_builds_complete_pre_catia_plan() -> None:
     )
     assert [len(airfoil.points) for airfoil in plan.airfoils] == [300, 253, 249]
     assert plan.is_sharp is True
+
+
+def test_naca_regression_contains_a_zero_translation_section() -> None:
+    """零位移资产必须实际覆盖三轴平移同时为 0 的分支。"""
+    sections = read_section_parameters(ZERO_TRANSLATION_SAMPLE)
+
+    assert any(
+        section["translate_x_m"] == 0
+        and section["translate_y_m"] == 0
+        and section["translate_z_m"] == 0
+        for section in sections
+    )
+    naca_airfoil = AIRFOIL_DIR / "naca0012_sharp.csv"
+    assert naca_airfoil.is_file()
+    assert len(read_airfoil_csv(naca_airfoil)) >= 3
+
+
+def test_five_single_airfoil_batch_regressions_remain_parseable() -> None:
+    """固定 batch 回归组必须保持五份、每份 26 个有效截面。"""
+    assert all(path.is_file() for path in BATCH_REGRESSION_FILES)
+    assert [
+        len(read_section_parameters(path))
+        for path in BATCH_REGRESSION_FILES
+    ] == [26, 26, 26, 26, 26]

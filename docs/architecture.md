@@ -10,27 +10,33 @@ CATIA AutoBlade 是运行在 Windows 上的 Python CLI。Python 负责读取输�
 
 ```text
 Typer CLI
-  -> commands：参数选择、交互提示、文件存在性检查
-  -> core：CSV 解析、CATIA COM 调用、建模与导出
+  -> commands / interactive：参数或交互选择、预览和执行确认
+  -> Planner：解析 CSV、闭合输入引用并生成 BladeBuildJob
+  -> Executor：执行一个或多个任务并汇总 BuildResult
+  -> core.create_blade：CATIA COM 调用、建模与导出
   -> CATIA V5：CATPart 文档、HybridShape、Loft、CloseSurface
 ```
 
 主要模块职责：
 
-- `catia_autoblade.cli`：注册 `create`、`batch`、`list` 和 `config` 子命令。
-- `catia_autoblade.commands`：把 CLI 输入转换为核心函数参数，不应包含 CATIA 几何规则。
+- `catia_autoblade.cli`：注册子命令、TTY 菜单入口，并统一异常呈现与退出码。
+- `catia_autoblade.interactive`：只收集选择和确认；取消当前操作时返回上一级。
+- `catia_autoblade.commands`：把 CLI 或交互选择交给 Planner，展示任务并调用 Executor，不包含 CATIA 几何规则。
+- `catia_autoblade.core.jobs`：定义已闭合的 `BladeBuildJob` 和结构化 `BuildResult`。
+- `catia_autoblade.core.planner`：完整解析输入、固定输出并检查同批次目标冲突。
+- `catia_autoblade.core.executor`：执行任务；批量模式记录单项失败并继续后续任务。
 - `catia_autoblade.core.catia_session`：独占 CATIA 实例并管理文档与 COM 生命周期。
 - `catia_autoblade.core.input_validation`：在启动 CATIA 前解析 CSV 并执行数据契约校验。
 - `catia_autoblade.core.input_plan`：解析受限跨文件引用，生成有序截面、唯一翼型和后缘拓扑计划。
 - `catia_autoblade.core.create_blade`：单叶片建模主流程和 CATIA COM 操作。
-- `catia_autoblade.core.batch`：按单/多翼型模式展开实际任务，逐个调用单叶片流程。
+- `catia_autoblade.core.batch`：保留 Python 批处理入口，并转发到统一 Planner 与 Executor。
 - `catia_autoblade.config`：配置模型、TOML 持久化及运行时绝对路径解析。
 - `catia_autoblade.utils.file_scanner`：从配置的输入目录发现 CSV 文件。
 
 ## 单叶片建模流程
 
-1. 解析截面模式和逐截面引用，构造包含有序截面、唯一翼型及后缘拓扑的输入计划；任何跨文件或领域错误在初始化 COM 前终止。
-2. 初始化 COM，通过 `DispatchEx` 启动当前任务独占的隐藏 `CATIA.Application`，创建空 `Part` 文档。
+1. Planner 解析截面模式和逐截面引用，构造包含有序截面、唯一翼型及后缘拓扑的 `BladeBuildJob`；任何跨文件、领域或输出冲突在初始化 COM 前终止。
+2. Executor 把已闭合输入计划交给建模流程；通过 `DispatchEx` 启动当前任务独占的隐藏 `CATIA.Application`，创建空 `Part` 文档。
 3. 将每个唯一翼型转换为以 m 表示、弦长为 1 m、X 轴位于 1/4 弦线的模型坐标；重复引用不会重复解析。
 4. 为每个唯一翼型创建一套点云和基准样条；钝后缘额外增加封口直线和 Join。
 5. 每个截面按 `airfoil_filename` 选择基准曲线，再依次执行绕 X 轴旋转、相对原点缩放和三维平移。
@@ -51,13 +57,15 @@ Typer CLI
 3. 回收残留 Python COM 代理；
 4. 调用与本次初始化配对的 `CoUninitialize`。
 
-如果建模过程中已有主异常，清理错误会附加到该异常而不会遮蔽根因；如果建模成功但清理失败，则单独抛出 `CatiaCleanupError`。单模型启用 `--keep-failed-part` 后，会在清理前将当前文档保存为不覆盖历史文件的 `*_failed.CATPart`，但不会对未完成几何导出 STEP。输入校验失败或 CATIA 会话初始化失败时没有可保存的文档。批处理的每个组合都有自己的会话，某一组合失败并完成清理后才会继续下一组合。
+如果建模过程中已有主异常，清理错误会附加到该异常而不会遮蔽根因；如果建模成功但清理失败，则单独抛出 `CatiaCleanupError`。单模型启用 `--keep-failed-part` 后，会在清理前将当前文档保存为不覆盖历史文件的 `*_failed.CATPart`，但不会对未完成几何导出 STEP。输入校验失败或 CATIA 会话初始化失败时没有可保存的文档。批处理的每个任务都有自己的会话，某一任务失败并完成清理后才会继续下一任务。
 
 ## 批处理模型
 
-批处理先检查每个截面文件的模式。六列单翼型文件继续与选中的翼型文件执行笛卡尔积；包含 `airfoil` 列的多翼型文件只生成一个任务，不参与笛卡尔积。单翼型结果按翼型名称分目录，多翼型结果按截面参数文件 stem 分目录；两种模式共享 `defaults.output_name_template`。
+批处理先检查每个截面文件的模式。所有选中的六列模板统一绑定一个显式翼型，每个模板生成一个任务；包含 `airfoil` 列的自包含文件也各生成一个任务。目录中的其他翼型不会扩大任务数，多个翼型参与组合属于未来 `sweep`。单翼型结果按翼型名称分目录，多翼型结果按截面参数文件 stem 分目录；两种模式共享 `defaults.output_name_template`。
 
-当前没有共享 CATIA 会话、失败重试、事务式输出或断点续跑。某一组合失败会先释放其独立 CATIA 会话、记录失败结果，然后继续处理其他组合。
+当前没有共享 CATIA 会话、失败重试、事务式输出或断点续跑。某一任务失败会先释放其独立 CATIA 会话、记录结构化失败结果，然后继续处理其他任务；只要存在失败，批处理进程最终返回 1。
+
+命令和模型输入的稳定职责见[设计原则](design-principles.md)，参数及退出码见 [CLI 参考](cli.md)。
 
 ## 几何约束
 

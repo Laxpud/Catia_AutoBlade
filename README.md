@@ -6,7 +6,7 @@ CATIA AutoBlade is a Windows command-line tool that builds 3D blade models in CA
 
 ## Status
 
-The project is an early working prototype. The single-airfoil workflow has been exercised successfully with CATIA P3 V5-6R2020. Legacy batch jobs use the Cartesian product of airfoil and section-parameter files, while a section file with an `airfoil` column defines one self-contained multi-airfoil blade job.
+The project is an early working prototype. The single-airfoil workflow has been exercised successfully with CATIA P3 V5-6R2020. A six-column section file is a template that requires one explicit airfoil; a section file with an `airfoil` column is one self-contained multi-airfoil model definition. Batch runs create one job per selected section definition and do not perform implicit parameter combinations.
 
 Per-section airfoil parsing, validation, deduplicated base-geometry creation, and section selection are implemented. The 89-section sample using three different point counts has completed Loft, solid closing, CATPart saving, and STEP AP242 export with CATIA P3 V5-6R2020.
 
@@ -50,7 +50,13 @@ uv pip install -e .
 
 ## Quick start
 
-List available input files:
+Open the menu in an interactive terminal:
+
+```powershell
+uv run autoblade
+```
+
+For scripts, list available input files:
 
 ```powershell
 uv run autoblade list
@@ -71,20 +77,13 @@ uv run autoblade create --section section_params-multi-airfoil.csv
 Use `--keep-failed-part` to save a `*_failed.CATPart` for debugging modeling
 failures.
 
-Create planned batch jobs; legacy section files use the selected airfoil combinations, while each multi-airfoil section file runs once:
+Build every discovered section definition; the explicit airfoil binds all six-column templates, while self-contained files keep their per-section references:
 
 ```powershell
 uv run autoblade batch --airfoil sc1095.csv
 ```
 
-Use `--interactive` with `create` or `batch` to select inputs at the prompt. Generated files use the directory and naming template from `config.toml`; an explicit `--output` overrides the configured output directory.
-
-The standalone entry points accept the same options as their corresponding subcommands:
-
-```powershell
-uv run autoblade-create --airfoil sc1095.csv --section section_params-1.csv
-uv run autoblade-batch --airfoil sc1095.csv
-```
+Detailed options, interactive behavior, standalone compatibility entry points, previews, overwrite rules, and exit codes are documented in the [CLI reference](docs/cli.md).
 
 ## Input overview
 
@@ -93,6 +92,8 @@ By default, airfoil CSV files belong in `input/airfoils/` and section parameter 
 ## Documentation
 
 - [Technical documentation index](docs/index.md)
+- [CLI reference](docs/cli.md)
+- [Design principles](docs/design-principles.md)
 - [Architecture](docs/architecture.md)
 - [Input data formats](docs/input-formats.md)
 - [Runtime configuration](docs/configuration.md)

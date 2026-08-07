@@ -113,7 +113,7 @@ idx,scale/m,translate_x/m,translate_y/m,translate_z/m,rotate/deg,airfoil
 - 引用路径、所有唯一翼型和后缘拓扑必须在启动 CATIA 前完成校验；
 - 不要求不同翼型具有相同点数，Loft 通过统一点序、实际前缘闭合点和前后缘导引线建立对应关系。
 
-完整的路径安全、CLI、批处理、输出命名和 Loft 降级策略见[展向多翼型设计](multi-airfoil-design.md)，实现进度记录在根目录 [TODO.md](../TODO.md)。
+完整的路径安全和 Loft 策略见[展向多翼型设计](multi-airfoil-design.md)，命令绑定与冲突规则见 [CLI 参考](cli.md)，实现进度记录在根目录 [TODO.md](../TODO.md)。
 
 ## 输出命名
 

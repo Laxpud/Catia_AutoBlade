@@ -6,7 +6,7 @@ CATIA AutoBlade 是一个 Windows 命令行工具，用于根据翼型点云和�
 
 ## 当前状态
 
-项目目前处于可工作的早期原型阶段。单翼型流程已经在 CATIA P3 V5-6R2020 环境中成功运行。旧版单翼型批处理仍按翼型与截面参数做笛卡尔积；包含 `airfoil` 列的截面文件则独立定义一个多翼型叶片任务。
+项目目前处于可工作的早期原型阶段。单翼型流程已经在 CATIA P3 V5-6R2020 环境中成功运行。六列截面文件是需要显式绑定一个翼型的模板；包含 `airfoil` 列的截面文件则独立定义一个自包含多翼型模型。批处理为每个选中的截面定义创建一个任务，不执行隐式参数组合。
 
 逐截面翼型解析、输入校验、唯一基准几何复用和截面选择已经实现。使用三种不同点数翼型的 89 截面样例已在 CATIA P3 V5-6R2020 中完成 Loft、实体封闭、CATPart 保存和 STEP AP242 导出。
 
@@ -50,7 +50,13 @@ uv pip install -e .
 
 ## 快速开始
 
-列出可用输入文件：
+在交互终端中打开菜单：
+
+```powershell
+uv run autoblade
+```
+
+脚本调用可先列出可用输入文件：
 
 ```powershell
 uv run autoblade list
@@ -70,20 +76,13 @@ uv run autoblade create --section section_params-multi-airfoil.csv
 
 建模失败时可使用 `--keep-failed-part` 保留 `*_failed.CATPart` 以便排查。
 
-创建规划后的批处理任务；旧版截面文件使用所选翼型组合，每个多翼型截面文件只运行一次：
+构建扫描到的所有截面定义；显式翼型统一绑定六列模板，自包含文件保留逐截面引用：
 
 ```powershell
 uv run autoblade batch --airfoil sc1095.csv
 ```
 
-为 `create` 或 `batch` 增加 `--interactive` 可通过交互提示选择输入。生成文件使用 `config.toml` 中的目录和命名模板；显式 `--output` 会覆盖配置输出目录。
-
-独立入口接受与对应子命令相同的选项：
-
-```powershell
-uv run autoblade-create --airfoil sc1095.csv --section section_params-1.csv
-uv run autoblade-batch --airfoil sc1095.csv
-```
+详细参数、交互行为、独立兼容入口、任务预览、覆盖规则和退出码见 [CLI 参考](cli.md)。
 
 ## 输入概览
 
@@ -92,6 +91,8 @@ uv run autoblade-batch --airfoil sc1095.csv
 ## 文档
 
 - [技术文档索引](index.md)
+- [CLI 参考](cli.md)
+- [设计原则](design-principles.md)
 - [架构说明](architecture.md)
 - [输入数据格式](input-formats.md)
 - [运行时配置](configuration.md)

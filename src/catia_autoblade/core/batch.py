@@ -2,29 +2,10 @@ from pathlib import Path
 
 from ..config.manager import ConfigManager
 from ..utils.file_scanner import get_available_files
-from ..utils.output_naming import build_output_name
 from .create_blade import create_single_blade
+from .executor import execute_jobs
 from .input_plan import inspect_section_mode
-
-
-def plan_batch_jobs(
-    airfoil_files,
-    section_params_files,
-    *,
-    section_params_dir,
-):
-    """按截面文件模式展开实际任务，避免多翼型文件参与笛卡尔积。"""
-    jobs = []
-    for section_file in section_params_files:
-        mode = inspect_section_mode(Path(section_params_dir) / section_file)
-        if mode == "multi":
-            jobs.append((None, section_file, mode))
-        else:
-            jobs.extend(
-                (airfoil_file, section_file, mode)
-                for airfoil_file in airfoil_files
-            )
-    return jobs
+from .planner import plan_batch_jobs
 
 
 def batch_create_blades(
@@ -37,7 +18,12 @@ def batch_create_blades(
     output_name_template=None,
     author=None,
 ):
-    """按配置目录和命名模板批量生成翼型/截面参数组合。"""
+    """执行多个闭合模型定义，并保留旧 Python 入口的字典结果格式。
+
+    ``batch`` 最多把一个翼型绑定到任意数量的六列截面模板；多个翼型与
+    多个模板的参数组合属于未来 ``sweep``，本入口不再根据目录内容生成
+    笛卡尔积。
+    """
     runtime_config = None
     if (
         airfoil_dir is None
@@ -59,77 +45,41 @@ def batch_create_blades(
     if author is None:
         author = runtime_config.defaults.author
 
-    if airfoil_files is None:
-        airfoil_files, _ = get_available_files(
-            airfoil_dir=airfoil_dir,
-            section_params_dir=section_params_dir,
-        )
-    if section_params_files is None:
-        _, section_params_files = get_available_files(
-            airfoil_dir=airfoil_dir,
-            section_params_dir=section_params_dir,
-        )
-
-    airfoil_files = [f for f in airfoil_files if Path(f).suffix.lower() == ".csv"]
-
-    jobs = plan_batch_jobs(
-        airfoil_files,
-        section_params_files,
+    discovered_airfoils, discovered_sections = get_available_files(
+        airfoil_dir=airfoil_dir,
         section_params_dir=section_params_dir,
     )
-    print(
-        f"[INFO] Batch processing: {len(jobs)} planned blade task(s) "
-        f"from {len(section_params_files)} section parameter file(s)"
+    if airfoil_files is None:
+        airfoil_files = discovered_airfoils
+    if section_params_files is None:
+        section_params_files = discovered_sections
+
+    section_params_files = list(section_params_files)
+    modes = [
+        inspect_section_mode(Path(section_params_dir) / section_filename)
+        for section_filename in section_params_files
+    ]
+    has_single_sections = "single" in modes
+    selected_airfoils = [
+        filename
+        for filename in airfoil_files
+        if Path(filename).suffix.lower() == ".csv"
+    ]
+    if has_single_sections and len(selected_airfoils) != 1:
+        raise ValueError(
+            "batch requires exactly one airfoil for six-column section files; "
+            "multiple-airfoil combinations belong to sweep"
+        )
+    selected_airfoil = selected_airfoils[0] if has_single_sections else None
+
+    jobs = plan_batch_jobs(
+        selected_airfoil,
+        section_params_files,
+        output_base_dir,
+        airfoil_dir=airfoil_dir,
+        section_params_dir=section_params_dir,
+        output_name_template=output_name_template,
+        author=author,
     )
-
-    results = []
-    for airfoil_file, section_file, mode in jobs:
-        try:
-            print(f"\n{'='*60}")
-            airfoil_label = airfoil_file or "per-section references"
-            print(
-                f"[INFO] Creating blade: airfoil={airfoil_label}, "
-                f"section={section_file}"
-            )
-            if mode == "multi":
-                output_subdir = Path(section_file).stem
-            else:
-                airfoil_name = Path(airfoil_file).stem
-                output_subdir = airfoil_name
-            output_name = build_output_name(
-                output_name_template,
-                airfoil_file,
-                section_file,
-                author=author,
-                is_multi_airfoil=mode == "multi",
-            )
-            output_dir = Path(output_base_dir) / output_subdir
-            create_single_blade(
-                airfoil_file,
-                section_file,
-                output_dir,
-                output_name,
-                airfoil_dir=airfoil_dir,
-                section_params_dir=section_params_dir,
-            )
-            results.append({
-                "status": "success",
-                "mode": mode,
-                "airfoil": airfoil_file,
-                "section": section_file,
-                "output": str(output_dir),
-            })
-            print(f"[SUCCESS] Blade created: {output_name}")
-        except Exception as e:
-            results.append({
-                "status": "failed",
-                "mode": mode,
-                "airfoil": airfoil_file,
-                "section": section_file,
-                "error": str(e),
-            })
-            print(f"[ERROR] Failed to create blade: {e}")
-
-    print(f"\n{'='*60}")
-    print(f"[INFO] Batch processing completed. {len([r for r in results if r['status'] == 'success'])}/{len(results)} successful.")
-    return results
+    results = execute_jobs(jobs, blade_creator=create_single_blade)
+    return [result.as_dict() for result in results]

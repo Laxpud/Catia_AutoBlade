@@ -28,7 +28,7 @@ section_params_dir = "section_params"
 
 ## CLI 覆盖优先级
 
-`create` 和 `batch` 的 `--output` 显式参数覆盖配置输出目录。未传该参数时，普通模式和交互模式都以 `paths.output_dir` 为默认值。六列截面文件通过 `--airfoil` 选择后备翼型；包含 `airfoil` 列的文件自行定义全部截面引用，不能再与 `create --airfoil` 组合。候选文件始终从配置的两个输入目录扫描。
+`create` 和 `batch` 的 `--output` 显式参数覆盖配置输出目录。未传该参数时，普通模式和交互模式都以 `paths.output_dir` 为默认值。六列截面文件通过 `--airfoil` 绑定一个翼型；包含 `airfoil` 列的文件自行定义全部截面引用，不能再与 `create --airfoil` 组合。`batch --airfoil` 只绑定同批次的六列模板，不改变自包含文件。候选文件始终从配置的两个输入目录扫描。
 
 ## 输出命名模板
 

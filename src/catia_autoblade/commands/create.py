@@ -1,6 +1,12 @@
+import typer
+
 from ..config.manager import ConfigManager
+from ..core.executor import execute_job
+from ..core.input_plan import inspect_section_mode
+from ..core.jobs import BuildResult
+from ..core.planner import plan_create_job
 from ..utils.file_scanner import get_available_files
-from ..utils.output_naming import build_output_name
+from .presentation import show_job_preview
 
 
 def run_create_command(
@@ -12,108 +18,90 @@ def run_create_command(
     *,
     config_manager: ConfigManager | None = None,
     blade_creator=None,
-):
+) -> BuildResult:
+    """规划并执行一个模型；失败保持为异常交给最外层 CLI 呈现。"""
     manager = config_manager or ConfigManager()
     config = manager.load_runtime()
     airfoil_files, section_params_files = get_available_files(
         airfoil_dir=config.paths.airfoil_dir,
         section_params_dir=config.paths.section_params_dir,
     )
-    configured_output_dir = config.paths.output_dir
+    if not section_params_files:
+        raise ValueError("No section parameter files were found.")
 
     if interactive:
         from ..interactive.prompts import (
+            confirm_execution,
             confirm_output_dir,
             select_airfoil,
             select_sections,
         )
 
-        if not section_params_files:
-            print("[ERROR] No section params files found.")
-            return
-
-        selected_section = select_sections(section_params_files, multi=False)[0]
+        selected_section = section or select_sections(
+            section_params_files,
+            multi=False,
+        )[0]
         output_default = (
-            manager.resolve_cli_path(output) if output else configured_output_dir
+            manager.resolve_cli_path(output)
+            if output
+            else config.paths.output_dir
         )
         output_dir = manager.resolve_cli_path(
             confirm_output_dir(str(output_default))
         )
     else:
-        if not section_params_files:
-            print("[ERROR] No section params files found.")
-            return
-
-        selected_section = section if section else section_params_files[0]
+        if section is None:
+            raise ValueError(
+                "Non-interactive create requires --section with one model definition."
+            )
+        selected_section = section
         output_dir = (
-            manager.resolve_cli_path(output) if output else configured_output_dir
+            manager.resolve_cli_path(output)
+            if output
+            else config.paths.output_dir
         )
 
     if selected_section not in section_params_files:
-        print(f"[ERROR] Section params file '{selected_section}' not found.")
-        return
-
-    try:
-        from ..core.input_plan import inspect_section_mode
-
-        section_mode = inspect_section_mode(
-            config.paths.section_params_dir / selected_section
+        raise ValueError(
+            f"Section parameter file not found: {selected_section!r}."
         )
-    except Exception as error:
-        print(f"[ERROR] Invalid section params file: {error}")
-        return
 
+    section_mode = inspect_section_mode(
+        config.paths.section_params_dir / selected_section
+    )
     if section_mode == "multi":
         if airfoil is not None:
-            print(
-                "[ERROR] --airfoil cannot be used when the section file "
-                "contains an airfoil column."
+            raise ValueError(
+                "--airfoil cannot be used when the section file contains "
+                "an airfoil column."
             )
-            return
         selected_airfoil = None
     else:
-        if not airfoil_files:
-            print("[ERROR] No airfoil files found.")
-            return
-        selected_airfoil = (
-            select_airfoil(airfoil_files)
-            if interactive
-            else (airfoil if airfoil else airfoil_files[0])
-        )
-        if selected_airfoil not in airfoil_files:
-            print(f"[ERROR] Airfoil file '{selected_airfoil}' not found.")
-            return
+        if airfoil is not None and airfoil not in airfoil_files:
+            raise ValueError(f"Airfoil file not found: {airfoil!r}.")
+        if interactive and airfoil is None:
+            if not airfoil_files:
+                raise ValueError("No airfoil files were found.")
+            selected_airfoil = select_airfoil(airfoil_files)
+        else:
+            # Planner 对非交互缺参给出带截面路径和字段的领域错误。
+            selected_airfoil = airfoil
 
-    print("\n[INFO] Creating single blade...")
-    airfoil_label = selected_airfoil or "per-section references"
-    print(f"[INFO] Airfoil: {airfoil_label}, Section: {selected_section}")
+    job = plan_create_job(
+        selected_airfoil,
+        selected_section,
+        output_dir,
+        airfoil_dir=config.paths.airfoil_dir,
+        section_params_dir=config.paths.section_params_dir,
+        output_name_template=config.defaults.output_name_template,
+        author=config.defaults.author,
+        keep_failed_part=keep_failed_part,
+    )
+    show_job_preview([job])
+    if interactive:
+        confirm_execution()
 
-    try:
-        output_name = build_output_name(
-            config.defaults.output_name_template,
-            selected_airfoil,
-            selected_section,
-            author=config.defaults.author,
-            is_multi_airfoil=section_mode == "multi",
-        )
-    except Exception as error:
-        print(f"[ERROR] Invalid output naming configuration: {error}")
-        return
-
-    try:
-        if blade_creator is None:
-            from ..core.create_blade import create_single_blade
-
-            blade_creator = create_single_blade
-        blade_creator(
-            selected_airfoil,
-            selected_section,
-            output_dir,
-            output_name,
-            airfoil_dir=config.paths.airfoil_dir,
-            section_params_dir=config.paths.section_params_dir,
-            keep_failed_part=keep_failed_part,
-        )
-        print(f"[SUCCESS] Blade created: {output_name}")
-    except Exception as e:
-        print(f"[ERROR] Failed to create blade: {e}")
+    typer.echo("[INFO] Creating single blade...")
+    result = execute_job(job, blade_creator=blade_creator)
+    typer.echo(f"[SUCCESS] Blade created: {job.output_name}")
+    return result

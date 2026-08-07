@@ -1,4 +1,16 @@
+import typer
+
 from ..config.manager import ConfigManager
+
+
+CONFIG_KEYS = (
+    "input_dir",
+    "output_dir",
+    "airfoil_dir",
+    "section_params_dir",
+    "author",
+    "output_name_template",
+)
 
 
 def run_config_command(
@@ -7,37 +19,42 @@ def run_config_command(
     value: str | None,
     *,
     config_manager: ConfigManager | None = None,
-):
+) -> None:
     manager = config_manager or ConfigManager()
 
     if action == "show":
         config = manager.load()
-        print("[INFO] Current configuration:")
-        print(f"  input_dir: {config.paths.input_dir}")
-        print(f"  output_dir: {config.paths.output_dir}")
-        print(f"  airfoil_dir: {config.paths.airfoil_dir}")
-        print(f"  section_params_dir: {config.paths.section_params_dir}")
-        print(f"  author: {config.defaults.author}")
-        print(f"  output_name_template: {config.defaults.output_name_template}")
+        typer.echo("[INFO] Current configuration:")
+        typer.echo(f"  input_dir: {config.paths.input_dir}")
+        typer.echo(f"  output_dir: {config.paths.output_dir}")
+        typer.echo(f"  airfoil_dir: {config.paths.airfoil_dir}")
+        typer.echo(f"  section_params_dir: {config.paths.section_params_dir}")
+        typer.echo(f"  author: {config.defaults.author}")
+        typer.echo(
+            "  output_name_template: "
+            f"{config.defaults.output_name_template}"
+        )
+        return
 
-    elif action == "set":
-        if not key or not value:
-            print("[ERROR] Both key and value are required for 'set' action.")
-            return
-
-        valid_keys = ["input_dir", "output_dir", "airfoil_dir", "section_params_dir", "author", "output_name_template"]
-        if key not in valid_keys:
-            print(f"[ERROR] Invalid key '{key}'. Valid keys: {', '.join(valid_keys)}")
-            return
+    if action == "set":
+        if key is None or value is None:
+            raise ValueError("Both --key and --value are required for config set.")
+        if key not in CONFIG_KEYS:
+            raise ValueError(
+                f"Invalid configuration key {key!r}. Valid keys: "
+                f"{', '.join(CONFIG_KEYS)}"
+            )
 
         config = manager.load()
-        if hasattr(config.paths, key):
-            setattr(config.paths, key, value)
-        elif hasattr(config.defaults, key):
-            setattr(config.defaults, key, value)
+        owner = config.paths if hasattr(config.paths, key) else config.defaults
+        setattr(owner, key, value)
         manager.save(config)
-        print(f"[INFO] {key} set to '{value}'")
+        typer.echo(f"[INFO] {key} set to {value!r}")
+        return
 
-    elif action == "reset":
+    if action == "reset":
         manager.save(manager.load().__class__())
-        print("[INFO] Configuration reset to defaults.")
+        typer.echo("[INFO] Configuration reset to defaults.")
+        return
+
+    raise ValueError("Configuration action must be one of: show, set, reset.")

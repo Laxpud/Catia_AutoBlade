@@ -112,7 +112,7 @@ def create_airfoil(part, points: list, *, feature_id: str | None = None):
             te_coord = (first_point,)
             return gs_airfoil, spline, is_sharp, te_coord
     except Exception as e:
-        raise Exception(f"[ERROR] Error creating airfoil cloud: {e}") from e
+        raise Exception(f"Error creating airfoil cloud: {e}") from e
 
 
 def section_scale_factor(chord_m):
@@ -181,7 +181,7 @@ def transform_airfoil_section(part, airfoil_ref, x_axis_ref, origin_ref, section
 
         return translated
     except Exception as e:
-        raise Exception(f"[ERROR] Error transforming section {section['idx']}: {e}") from e
+        raise Exception(f"Error transforming section {section['idx']}: {e}") from e
 
 
 def create_section_le_te_points(
@@ -289,7 +289,9 @@ def create_section_le_te_points(
             te_upper_points.append(te_final)
             te_lower_points.append(te_final)
     except Exception as e:
-        raise Exception(f"[ERROR] Error creating LE/TE points for section {section['idx']}: {e}") from e
+        raise Exception(
+            f"Error creating LE/TE points for section {section['idx']}: {e}"
+        ) from e
 
 
 def create_blade_geometry(
@@ -387,7 +389,7 @@ def create_blade_geometry(
         return gs_blade, section_splines, le_spline, te_upper_spline, te_lower_spline, le_points
 
     except Exception as e:
-        raise Exception(f"[ERROR] Error creating blade geometry: {e}") from e
+        raise Exception(f"Error creating blade geometry: {e}") from e
 
 
 def create_blade_surface(part, section_splines: list, le_spline, te_upper_spline, te_lower_spline, le_points, is_sharp):
@@ -429,7 +431,7 @@ def create_blade_surface(part, section_splines: list, le_spline, te_upper_spline
         return gs_blade_surface, blade_surface
 
     except Exception as e:
-        raise Exception(f"[ERROR] Error creating blade surface: {e}") from e
+        raise Exception(f"Error creating blade surface: {e}") from e
 
 
 def create_blade_solid(part, surface):
@@ -448,7 +450,7 @@ def create_blade_solid(part, surface):
         return blade_solid
 
     except Exception as e:
-        raise Exception(f"[ERROR] Error creating blade solid: {e}") from e
+        raise Exception(f"Error creating blade solid: {e}") from e
 
 
 def save_part(part_document, output_dir, output_name="blade_part"):
@@ -466,7 +468,7 @@ def save_part(part_document, output_dir, output_name="blade_part"):
         part_document.ExportData(stp_path, "stp")
         print(f"[INFO] Part exported to: {stp_path}")
     except Exception as e:
-        raise Exception(f"[ERROR] Error saving part: {e}") from e
+        raise Exception(f"Error saving part: {e}") from e
 
 
 def save_failed_part(part_document, output_dir, output_name="blade_part"):
@@ -487,7 +489,7 @@ def save_failed_part(part_document, output_dir, output_name="blade_part"):
         part_document.SaveAs(str(failed_path))
     except Exception as error:
         raise Exception(
-            f"[ERROR] Error saving failed CATIA part to {failed_path}: {error}"
+            f"Error saving failed CATIA part to {failed_path}: {error}"
         ) from error
 
     print(f"[INFO] Failed CATIA part saved to: {failed_path}")
@@ -531,6 +533,7 @@ def create_single_blade(
     output_name_template=None,
     keep_failed_part=False,
     session_factory=CatiaSession,
+    input_plan: BladeInputPlan | None = None,
 ):
     """创建单个叶片，并按需保留建模失败时的 CATIA 原生快照。"""
     runtime_config = None
@@ -551,13 +554,14 @@ def create_single_blade(
         output_dir = runtime_config.paths.output_dir
     # 输入必须在 COM 初始化前完成解析和领域校验。这样缺列、非法数字、
     # 点序、截面数量或跨文件引用错误不会启动昂贵且需要清理的 CATIA 进程。
-    section_params_path = Path(section_params_dir) / section_params_filename
-    input_plan = build_blade_input_plan(
-        section_params_path,
-        airfoil_dir,
-        airfoil_filename,
-        airfoil_reader=read_airfoil_csv,
-    )
+    if input_plan is None:
+        section_params_path = Path(section_params_dir) / section_params_filename
+        input_plan = build_blade_input_plan(
+            section_params_path,
+            airfoil_dir,
+            airfoil_filename,
+            airfoil_reader=read_airfoil_csv,
+        )
 
     if output_name is None:
         template = output_name_template

@@ -8,6 +8,20 @@ from catia_autoblade.core.catia_session import CatiaCleanupError, CatiaSession
 from catia_autoblade.core.input_plan import AirfoilInput, BladeInputPlan
 
 
+SHARP_AIRFOIL = """x,y,z
+0,1,0
+0,0.5,0.1
+0,0,0
+0,0.5,-0.1
+0,1,0
+"""
+
+VALID_SECTIONS = """idx,scale/m,translate_x/m,translate_y/m,translate_z/m,rotate/deg
+1,0.1,0,0,0,10
+2,0.08,1,0,0,5
+"""
+
+
 class FakePart:
     def __init__(self, events: list[str]) -> None:
         self.events = events
@@ -397,12 +411,25 @@ def test_batch_failure_closes_every_owned_application(
         "inspect_section_mode",
         lambda path: "single",
     )
+    airfoil_dir = tmp_path / "airfoils"
+    section_dir = tmp_path / "sections"
+    airfoil_dir.mkdir()
+    section_dir.mkdir()
+    (airfoil_dir / "foil.csv").write_text(
+        SHARP_AIRFOIL,
+        encoding="utf-8",
+    )
+    for filename in ("section_params-bad.csv", "section_params-good.csv"):
+        (section_dir / filename).write_text(
+            VALID_SECTIONS,
+            encoding="utf-8",
+        )
     results = batch_module.batch_create_blades(
         ["foil.csv"],
         ["section_params-bad.csv", "section_params-good.csv"],
         tmp_path / "output",
-        airfoil_dir=tmp_path / "airfoils",
-        section_params_dir=tmp_path / "sections",
+        airfoil_dir=airfoil_dir,
+        section_params_dir=section_dir,
         output_name_template="{airfoil}_{idx}",
         author="",
     )

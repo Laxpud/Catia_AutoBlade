@@ -1,14 +1,60 @@
-import typer
-from typing import Optional, Annotated
+import sys
+from collections.abc import Callable
+from typing import Annotated
 
-app = typer.Typer(help="CATIA AutoBlade - Blade creation automation tool")
+import typer
+
+
+app = typer.Typer(
+    help="CATIA AutoBlade - Blade creation automation tool",
+    invoke_without_command=True,
+    no_args_is_help=False,
+)
+
+
+def is_interactive_terminal() -> bool:
+    """无参数菜单只在输入和输出都连接真实终端时启用。"""
+    return sys.stdin.isatty() and sys.stdout.isatty()
+
+
+def _run_cli(action: Callable[[], object]) -> object | None:
+    """统一人类可读错误、取消和进程退出码的最外层命令边界。"""
+    from .interactive.prompts import PromptCancelled
+
+    try:
+        return action()
+    except PromptCancelled as error:
+        typer.echo(f"[INFO] {error}")
+        return None
+    except KeyboardInterrupt:
+        typer.echo("\n[ERROR] Interrupted by user.", err=True)
+        raise typer.Exit(130) from None
+    except typer.Exit:
+        raise
+    except Exception as error:
+        typer.echo(f"[ERROR] {error}", err=True)
+        raise typer.Exit(1) from None
+
+
+@app.callback()
+def main(ctx: typer.Context) -> None:
+    """Open the interactive menu when no explicit subcommand is provided."""
+    if ctx.invoked_subcommand is not None:
+        return
+    if not is_interactive_terminal():
+        typer.echo(ctx.get_help(), err=True)
+        raise typer.Exit(2)
+
+    from .interactive.menu import run_main_menu
+
+    _run_cli(run_main_menu)
 
 
 @app.command()
 def create(
-    airfoil: Annotated[Optional[str], typer.Option("--airfoil", "-a")] = None,
-    section: Annotated[Optional[str], typer.Option("--section", "-s")] = None,
-    output: Annotated[Optional[str], typer.Option("--output", "-o")] = None,
+    airfoil: Annotated[str | None, typer.Option("--airfoil", "-a")] = None,
+    section: Annotated[str | None, typer.Option("--section", "-s")] = None,
+    output: Annotated[str | None, typer.Option("--output", "-o")] = None,
     interactive: Annotated[bool, typer.Option("--interactive", "-i")] = False,
     keep_failed_part: Annotated[
         bool,
@@ -17,51 +63,70 @@ def create(
             help="Save a CATPart snapshot when CATIA modeling fails.",
         ),
     ] = False,
-):
-    """Create a single blade"""
+) -> None:
+    """Create one blade from one explicit model definition."""
     from .commands.create import run_create_command
-    run_create_command(
-        airfoil,
-        section,
-        output,
-        interactive,
-        keep_failed_part,
+
+    _run_cli(
+        lambda: run_create_command(
+            airfoil,
+            section,
+            output,
+            interactive,
+            keep_failed_part,
+        )
     )
 
 
 @app.command()
 def batch(
-    airfoil: Annotated[Optional[str], typer.Option("--airfoil", "-a")] = None,
-    section: Annotated[Optional[str], typer.Option("--section", "-s")] = None,
-    output: Annotated[Optional[str], typer.Option("--output", "-o")] = None,
+    airfoil: Annotated[str | None, typer.Option("--airfoil", "-a")] = None,
+    section: Annotated[str | None, typer.Option("--section", "-s")] = None,
+    output: Annotated[str | None, typer.Option("--output", "-o")] = None,
     list_files: Annotated[bool, typer.Option("--list", "-l")] = False,
     interactive: Annotated[bool, typer.Option("--interactive", "-i")] = False,
-):
-    """Batch create blades"""
+) -> None:
+    """Build multiple closed model definitions without parameter combinations."""
     from .commands.batch import run_batch_command
-    run_batch_command(airfoil, section, output, list_files, interactive)
+
+    _run_cli(
+        lambda: run_batch_command(
+            airfoil,
+            section,
+            output,
+            list_files,
+            interactive,
+        )
+    )
 
 
-@app.command()
-def list(
+@app.command("list")
+def list_inputs(
     config_show: Annotated[bool, typer.Option("--config")] = False,
-):
-    """List available files or configuration"""
+) -> None:
+    """List available files or configuration."""
     from .commands.list import run_list_command
-    run_list_command(config_show)
+
+    _run_cli(lambda: run_list_command(config_show))
 
 
 @app.command()
 def config(
-    action: Annotated[str, typer.Argument] = ...,
-    key: Annotated[Optional[str], typer.Option("--key", "-k")] = None,
-    value: Annotated[Optional[str], typer.Option("--value", "-v")] = None,
-):
-    """Manage configuration file (show, set, reset)"""
-    if action not in ["show", "set", "reset"]:
+    action: Annotated[str, typer.Argument()] = ...,
+    key: Annotated[str | None, typer.Option("--key", "-k")] = None,
+    value: Annotated[str | None, typer.Option("--value", "-v")] = None,
+) -> None:
+    """Manage configuration file (show, set, reset)."""
+    if action not in {"show", "set", "reset"}:
         raise typer.BadParameter("action must be one of: show, set, reset")
+    if action == "set" and (key is None or value is None):
+        raise typer.BadParameter(
+            "config set requires both --key and --value"
+        )
+
     from .commands.config import run_config_command
-    run_config_command(action, key, value)
+
+    _run_cli(lambda: run_config_command(action, key, value))
 
 
 def create_entrypoint() -> None:

@@ -55,6 +55,8 @@ uv run autoblade list
 uv run autoblade create --airfoil sc1095.csv --section section_params-1.csv
 ```
 
+建模失败时可使用 `--keep-failed-part` 保留 `*_failed.CATPart` 以便排查。
+
 创建所有选定组合：
 
 ```powershell

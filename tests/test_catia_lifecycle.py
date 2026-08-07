@@ -29,9 +29,11 @@ class FakeDocument:
         self.fail_save = fail_save
         self.fail_export = fail_export
         self.fail_close = fail_close
+        self.saved_paths: list[Path] = []
 
     def SaveAs(self, path: str) -> None:
         self.events.append("document.save")
+        self.saved_paths.append(Path(path))
         if self.fail_save:
             raise RuntimeError("save failed")
 
@@ -223,6 +225,102 @@ def test_create_blade_cleans_up_after_each_failure_stage(
             session_factory=harness.session_factory,
         )
 
+    _assert_complete_cleanup(harness.events)
+
+
+def test_model_failure_can_save_catia_snapshot_before_cleanup(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    harness = LifecycleHarness()
+    _patch_successful_geometry(monkeypatch)
+
+    def fail_model(part, points):
+        raise RuntimeError("model failed")
+
+    monkeypatch.setattr(create_module, "create_airfoil", fail_model)
+
+    with pytest.raises(RuntimeError, match="model failed"):
+        create_module.create_single_blade(
+            "foil.csv",
+            "section_params-1.csv",
+            tmp_path / "output",
+            "blade",
+            airfoil_dir=tmp_path / "airfoils",
+            section_params_dir=tmp_path / "sections",
+            keep_failed_part=True,
+            session_factory=harness.session_factory,
+        )
+
+    assert harness.document.saved_paths == [
+        (tmp_path / "output" / "blade_failed.CATPart").resolve()
+    ]
+    assert harness.events.index("document.save") < harness.events.index(
+        "document.close"
+    )
+    _assert_complete_cleanup(harness.events)
+
+
+def test_failed_snapshot_uses_suffix_instead_of_overwriting(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    harness = LifecycleHarness()
+    _patch_successful_geometry(monkeypatch)
+    output_dir = tmp_path / "output"
+    output_dir.mkdir()
+    (output_dir / "blade_failed.CATPart").touch()
+
+    def fail_model(part, points):
+        raise RuntimeError("model failed")
+
+    monkeypatch.setattr(create_module, "create_airfoil", fail_model)
+
+    with pytest.raises(RuntimeError, match="model failed"):
+        create_module.create_single_blade(
+            "foil.csv",
+            "section_params-1.csv",
+            output_dir,
+            "blade",
+            airfoil_dir=tmp_path / "airfoils",
+            section_params_dir=tmp_path / "sections",
+            keep_failed_part=True,
+            session_factory=harness.session_factory,
+        )
+
+    assert harness.document.saved_paths == [
+        (output_dir / "blade_failed-2.CATPart").resolve()
+    ]
+
+
+def test_failed_snapshot_error_does_not_mask_model_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    harness = LifecycleHarness(fail_save=True)
+    _patch_successful_geometry(monkeypatch)
+
+    def fail_model(part, points):
+        raise RuntimeError("model failed")
+
+    monkeypatch.setattr(create_module, "create_airfoil", fail_model)
+
+    with pytest.raises(RuntimeError, match="model failed") as raised:
+        create_module.create_single_blade(
+            "foil.csv",
+            "section_params-1.csv",
+            tmp_path / "output",
+            "blade",
+            airfoil_dir=tmp_path / "airfoils",
+            section_params_dir=tmp_path / "sections",
+            keep_failed_part=True,
+            session_factory=harness.session_factory,
+        )
+
+    assert any(
+        "Failed CATIA snapshot could not be saved" in note
+        for note in raised.value.__notes__
+    )
     _assert_complete_cleanup(harness.events)
 
 

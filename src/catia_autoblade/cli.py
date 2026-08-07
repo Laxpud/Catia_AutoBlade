@@ -10,10 +10,23 @@ def create(
     section: Annotated[Optional[str], typer.Option("--section", "-s")] = None,
     output: Annotated[Optional[str], typer.Option("--output", "-o")] = None,
     interactive: Annotated[bool, typer.Option("--interactive", "-i")] = False,
+    keep_failed_part: Annotated[
+        bool,
+        typer.Option(
+            "--keep-failed-part",
+            help="Save a CATPart snapshot when CATIA modeling fails.",
+        ),
+    ] = False,
 ):
     """Create a single blade"""
     from .commands.create import run_create_command
-    run_create_command(airfoil, section, output, interactive)
+    run_create_command(
+        airfoil,
+        section,
+        output,
+        interactive,
+        keep_failed_part,
+    )
 
 
 @app.command()

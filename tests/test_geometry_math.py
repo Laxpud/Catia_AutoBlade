@@ -1,9 +1,13 @@
+from types import SimpleNamespace
+from unittest.mock import Mock
+
 import pytest
 
 from catia_autoblade.core.create_blade import (
     meters_to_catia_mm,
     point_m_to_catia_mm,
     section_scale_factor,
+    transform_airfoil_section,
     transform_point,
 )
 
@@ -58,3 +62,70 @@ def test_transform_point_keeps_domain_values_in_meters() -> None:
     )
 
     assert transformed == pytest.approx((0.5, 0.035, -0.02))
+
+
+def _make_transform_part():
+    """构造只记录截面变换 COM 调用的最小 Part 替身。"""
+    rotated = SimpleNamespace(Name=None)
+    scaled = SimpleNamespace(Name=None)
+    translated = SimpleNamespace(Name=None)
+    factory = Mock()
+    factory.AddNewRotate.return_value = rotated
+    factory.AddNewHybridScaling.return_value = scaled
+    factory.AddNewTranslate.return_value = translated
+    part = Mock()
+    part.HybridShapeFactory = factory
+    part.CreateReferenceFromObject.side_effect = lambda feature: feature
+    return part, factory, scaled, translated
+
+
+def test_zero_translation_skips_invalid_catia_direction() -> None:
+    part, factory, scaled, _ = _make_transform_part()
+    section = {
+        "idx": 1,
+        "rotation_deg": 0.0,
+        "chord_m": 0.1,
+        "translate_x_m": 0.0,
+        "translate_y_m": 0.0,
+        "translate_z_m": 0.0,
+    }
+
+    result = transform_airfoil_section(
+        part,
+        airfoil_ref="airfoil",
+        x_axis_ref="x-axis",
+        origin_ref="origin",
+        section=section,
+    )
+
+    assert result is scaled
+    factory.AddNewDirectionByCoord.assert_not_called()
+    factory.AddNewTranslate.assert_not_called()
+
+
+def test_nonzero_translation_keeps_direction_and_distance() -> None:
+    part, factory, _, translated = _make_transform_part()
+    section = {
+        "idx": 2,
+        "rotation_deg": 0.0,
+        "chord_m": 0.1,
+        "translate_x_m": 0.3,
+        "translate_y_m": 0.4,
+        "translate_z_m": 0.0,
+    }
+
+    result = transform_airfoil_section(
+        part,
+        airfoil_ref="airfoil",
+        x_axis_ref="x-axis",
+        origin_ref="origin",
+        section=section,
+    )
+
+    assert result is translated
+    factory.AddNewDirectionByCoord.assert_called_once_with(0.3, 0.4, 0.0)
+    factory.AddNewTranslate.assert_called_once_with(
+        factory.AddNewHybridScaling.return_value,
+        factory.AddNewDirectionByCoord.return_value,
+        pytest.approx(500.0),
+    )

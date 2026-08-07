@@ -7,6 +7,7 @@ from ..utils.output_naming import build_output_name
 from .catia_session import CatiaSession
 from .input_validation import (
     AIRFOIL_QUARTER_CHORD_RATIO,
+    COORDINATE_TOLERANCE_M,
     read_airfoil_csv,
     read_section_parameters,
 )
@@ -136,16 +137,26 @@ def transform_airfoil_section(part, airfoil_ref, x_axis_ref, origin_ref, section
         scaled.Name = f"section_scaling_{section['idx']}"
         part.Update()
 
+        translate_distance_m = math.sqrt(
+            section['translate_x_m']**2 +
+            section['translate_y_m']**2 +
+            section['translate_z_m']**2
+        )
+
+        # 零位移是合法的恒等变换，但零向量不能定义 CATIA Direction。
+        # 此时直接复用缩放后的截面，避免创建缺少有效方向的 Translate 特征。
+        if math.isclose(
+            translate_distance_m,
+            0.0,
+            abs_tol=COORDINATE_TOLERANCE_M,
+        ):
+            return scaled
+
         scaled_ref = part.CreateReferenceFromObject(scaled)
         translate_dir = hsf.AddNewDirectionByCoord(
             section['translate_x_m'],
             section['translate_y_m'],
             section['translate_z_m']
-        )
-        translate_distance_m = math.sqrt(
-            section['translate_x_m']**2 +
-            section['translate_y_m']**2 +
-            section['translate_z_m']**2
         )
         translated = hsf.AddNewTranslate(
             scaled_ref,
@@ -435,6 +446,31 @@ def save_part(part_document, output_dir, output_name="blade_part"):
         raise Exception(f"[ERROR] Error saving part: {e}") from e
 
 
+def save_failed_part(part_document, output_dir, output_name="blade_part"):
+    """将 CATIA 失败现场保存为不覆盖历史快照的原生文档。"""
+    output_path = Path(output_dir).resolve()
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    # 失败快照用于逐次对比特征树和 CATIA 更新状态，因此必须保留旧文件。
+    # 首次使用 ``_failed``，后续冲突时追加递增编号；失败现场不导出 STEP，
+    # 因为未完成几何通常无法稳定通过中性格式导出。
+    failed_path = output_path / f"{output_name}_failed.CATPart"
+    suffix = 2
+    while failed_path.exists():
+        failed_path = output_path / f"{output_name}_failed-{suffix}.CATPart"
+        suffix += 1
+
+    try:
+        part_document.SaveAs(str(failed_path))
+    except Exception as error:
+        raise Exception(
+            f"[ERROR] Error saving failed CATIA part to {failed_path}: {error}"
+        ) from error
+
+    print(f"[INFO] Failed CATIA part saved to: {failed_path}")
+    return failed_path
+
+
 def hide_object(selection, obj):
     try:
         selection.Add(obj)
@@ -464,9 +500,10 @@ def create_single_blade(
     airfoil_dir=None,
     section_params_dir=None,
     output_name_template=None,
+    keep_failed_part=False,
     session_factory=CatiaSession,
 ):
-    """创建单个叶片，并在所有退出路径释放文档、CATIA 和 COM 状态。"""
+    """创建单个叶片，并按需保留建模失败时的 CATIA 原生快照。"""
     runtime_config = None
     needs_runtime_config = (
         airfoil_dir is None
@@ -502,17 +539,35 @@ def create_single_blade(
     points = read_airfoil_csv(airfoil_path)
     section_params = read_section_parameters(section_params_path)
 
-    # 会话上下文只覆盖 CATIA 建模、更新、保存和导出；其中任何一步抛出异常，
-    # __exit__ 都会先完成资源清理，再把原始异常交给上层处理。
+    # 会话上下文只覆盖 CATIA 建模、更新、保存和导出。启用失败快照时，必须
+    # 在 __exit__ 关闭文档前执行 SaveAs；快照保存自身的错误只能作为附加诊断，
+    # 不能遮蔽最初发生的几何、更新或导出异常。
     with session_factory() as session:
-        _build_and_save_blade(
-            session.part_document,
-            session.part,
-            points,
-            section_params,
-            output_dir,
-            output_name,
-        )
+        try:
+            _build_and_save_blade(
+                session.part_document,
+                session.part,
+                points,
+                section_params,
+                output_dir,
+                output_name,
+            )
+        except Exception as primary_error:
+            if keep_failed_part:
+                try:
+                    save_failed_part(
+                        session.part_document,
+                        output_dir,
+                        output_name,
+                    )
+                except Exception as snapshot_error:
+                    warning = (
+                        "Failed CATIA snapshot could not be saved: "
+                        f"{snapshot_error}"
+                    )
+                    primary_error.add_note(warning)
+                    print(f"[WARNING] {warning}")
+            raise
 
     return output_name, output_dir
 

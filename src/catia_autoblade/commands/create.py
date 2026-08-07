@@ -8,6 +8,7 @@ def run_create_command(
     section: str | None,
     output: str | None,
     interactive: bool,
+    keep_failed_part: bool = False,
     *,
     config_manager: ConfigManager | None = None,
     blade_creator=None,
@@ -88,6 +89,7 @@ def run_create_command(
             output_name,
             airfoil_dir=config.paths.airfoil_dir,
             section_params_dir=config.paths.section_params_dir,
+            keep_failed_part=keep_failed_part,
         )
         print(f"[SUCCESS] Blade created: {output_name}")
     except Exception as e:

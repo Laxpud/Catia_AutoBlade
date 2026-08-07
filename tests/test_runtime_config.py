@@ -113,6 +113,7 @@ def test_create_command_cli_output_overrides_config(
         "section_params-7.csv",
         "cli-output",
         False,
+        True,
         config_manager=manager,
         blade_creator=fake_create,
     )
@@ -128,6 +129,7 @@ def test_create_command_cli_output_overrides_config(
     assert kwargs["section_params_dir"] == (
         config_dir / "data" / "sections"
     ).resolve()
+    assert kwargs["keep_failed_part"] is True
 
 
 def test_batch_command_uses_configured_output_and_template(tmp_path: Path) -> None:

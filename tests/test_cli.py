@@ -14,8 +14,10 @@ runner = CliRunner()
 def test_create_subcommand_parses_short_options(monkeypatch) -> None:
     calls = []
 
-    def fake_run(airfoil, section, output, interactive):
-        calls.append((airfoil, section, output, interactive))
+    def fake_run(airfoil, section, output, interactive, keep_failed_part):
+        calls.append(
+            (airfoil, section, output, interactive, keep_failed_part)
+        )
 
     monkeypatch.setattr(create_commands, "run_create_command", fake_run)
     result = runner.invoke(
@@ -29,11 +31,14 @@ def test_create_subcommand_parses_short_options(monkeypatch) -> None:
             "-o",
             "generated",
             "-i",
+            "--keep-failed-part",
         ],
     )
 
     assert result.exit_code == 0, result.output
-    assert calls == [("foil.csv", "sections.csv", "generated", True)]
+    assert calls == [
+        ("foil.csv", "sections.csv", "generated", True, True)
+    ]
 
 
 def test_batch_subcommand_parses_all_options(monkeypatch) -> None:
@@ -122,8 +127,10 @@ def test_standalone_batch_signature_matches_main_callback(monkeypatch) -> None:
 def test_standalone_callback_parses_same_create_options(monkeypatch) -> None:
     calls = []
 
-    def fake_run(airfoil, section, output, interactive):
-        calls.append((airfoil, section, output, interactive))
+    def fake_run(airfoil, section, output, interactive, keep_failed_part):
+        calls.append(
+            (airfoil, section, output, interactive, keep_failed_part)
+        )
 
     monkeypatch.setattr(create_commands, "run_create_command", fake_run)
     standalone_app = typer.Typer()
@@ -135,4 +142,4 @@ def test_standalone_callback_parses_same_create_options(monkeypatch) -> None:
     )
 
     assert result.exit_code == 0, result.output
-    assert calls == [("foil.csv", "sections.csv", None, False)]
+    assert calls == [("foil.csv", "sections.csv", None, False, False)]

@@ -181,6 +181,7 @@ def test_validation_finishes_before_catia_session_starts(tmp_path: Path) -> None
             "blade",
             airfoil_dir=airfoil_dir,
             section_params_dir=section_dir,
+            keep_failed_part=True,
             session_factory=forbidden_session,
         )
 

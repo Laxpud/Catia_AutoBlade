@@ -55,6 +55,9 @@ Create one blade:
 uv run autoblade create --airfoil sc1095.csv --section section_params-1.csv
 ```
 
+Use `--keep-failed-part` to save a `*_failed.CATPart` for debugging modeling
+failures.
+
 Create all selected combinations:
 
 ```powershell

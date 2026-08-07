@@ -35,6 +35,12 @@ CATIA AutoBlade 当前提供：
 
 项目已在 CATIA P3 V5-6R2020 中使用；其他 CATIA V5 版本尚未列为经过验证的环境。
 
+可在 Windows 上通过 WinGet 安装 `uv`：
+
+```powershell
+winget install --id=astral-sh.uv -e
+```
+
 ## 安装
 
 ```powershell

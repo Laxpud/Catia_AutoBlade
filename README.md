@@ -35,6 +35,12 @@ It is not a general-purpose airfoil editor, aerodynamic solver, or platform-inde
 
 The project has been used with CATIA P3 V5-6R2020. Other CATIA V5 releases have not been documented as verified environments.
 
+Install `uv` on Windows with WinGet:
+
+```powershell
+winget install --id=astral-sh.uv -e
+```
+
 ## Installation
 
 ```powershell

@@ -16,6 +16,18 @@ from catia_autoblade.interactive.prompts import PromptCancelled
 runner = CliRunner()
 
 
+def test_version_reports_package_version_without_opening_menu(monkeypatch) -> None:
+    monkeypatch.setattr(cli, "is_interactive_terminal", lambda: True)
+    called = []
+    monkeypatch.setattr(menu, "run_main_menu", lambda: called.append(True))
+
+    result = runner.invoke(cli.app, ["--version"])
+
+    assert result.exit_code == 0, result.output
+    assert result.stdout.strip() == "catia-autoblade 0.1.1"
+    assert called == []
+
+
 def test_create_subcommand_parses_short_options(monkeypatch) -> None:
     calls = []
 

@@ -37,8 +37,23 @@ def _run_cli(action: Callable[[], object]) -> object | None:
 
 
 @app.callback()
-def main(ctx: typer.Context) -> None:
+def main(
+    ctx: typer.Context,
+    version: Annotated[
+        bool,
+        typer.Option(
+            "--version",
+            help="Show the installed CATIA AutoBlade version and exit.",
+            is_eager=True,
+        ),
+    ] = False,
+) -> None:
     """Open the interactive menu when no explicit subcommand is provided."""
+    if version:
+        from . import __version__
+
+        typer.echo(f"catia-autoblade {__version__}")
+        raise typer.Exit()
     if ctx.invoked_subcommand is not None:
         return
     if not is_interactive_terminal():

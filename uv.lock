@@ -1,6 +1,6 @@
 version = 1
 revision = 3
-requires-python = ">=3.14"
+requires-python = ">=3.14,<3.15"
 
 [[package]]
 name = "annotated-doc"
@@ -25,7 +25,7 @@ name = "catia-autoblade"
 source = { editable = "." }
 dependencies = [
     { name = "pydantic" },
-    { name = "pywin32" },
+    { name = "pywin32", marker = "sys_platform == 'win32'" },
     { name = "questionary" },
     { name = "tomlkit" },
     { name = "typer" },
@@ -39,13 +39,13 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "pydantic", specifier = ">=2.0" },
-    { name = "pytest", marker = "extra == 'dev'" },
-    { name = "pywin32", specifier = ">=302" },
-    { name = "questionary", specifier = ">=2.0" },
-    { name = "ruff", marker = "extra == 'dev'" },
-    { name = "tomlkit", specifier = ">=0.13" },
-    { name = "typer", specifier = ">=0.15" },
+    { name = "pydantic", specifier = ">=2.12,<3" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=9.0,<10" },
+    { name = "pywin32", marker = "sys_platform == 'win32'", specifier = "==311" },
+    { name = "questionary", specifier = ">=2.1,<3" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.15,<0.16" },
+    { name = "tomlkit", specifier = ">=0.14,<0.15" },
+    { name = "typer", specifier = ">=0.24,<0.25" },
 ]
 provides-extras = ["dev"]
 

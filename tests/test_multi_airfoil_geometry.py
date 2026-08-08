@@ -3,7 +3,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from catia_autoblade.core import create_blade as create_module
+from catia_autoblade.adapters.cad.catia import builder as create_module
 from catia_autoblade.core.input_plan import AirfoilInput, BladeInputPlan
 
 

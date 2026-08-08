@@ -1,6 +1,6 @@
 # CATIA AutoBlade
 
-[English](README.md) | [简体中文](docs/README.cn.md)
+[English](https://github.com/Laxpud/catia-autoblade/blob/main/README.md) | [简体中文](https://github.com/Laxpud/catia-autoblade/blob/main/docs/README.cn.md)
 
 CATIA AutoBlade is a Windows command-line tool that builds 3D blade models in CATIA V5 from airfoil point clouds and spanwise section parameters. It drives CATIA through its COM automation interface and exports both native `CATPart` files and STEP models.
 
@@ -10,7 +10,7 @@ The project is an early working prototype. The single-airfoil workflow has been 
 
 Per-section airfoil parsing, validation, deduplicated base-geometry creation, and section selection are implemented. The 89-section sample using three different point counts has completed Loft, solid closing, CATPart saving, and STEP AP242 export with CATIA P3 V5-6R2020.
 
-The stable single-airfoil and spanwise multi-airfoil milestones are complete. See [TODO.md](TODO.md) for the remaining engineering-consistency work.
+The stable single-airfoil and spanwise multi-airfoil milestones are complete. The first distributable target is an internal `v0.x` preview wheel for engineering users who already operate a licensed CATIA environment; no public package-index or standalone executable release is supported yet. See the [distribution scope and support policy](https://github.com/Laxpud/catia-autoblade/blob/main/docs/distribution-scope.md) and [TODO.md](https://github.com/Laxpud/catia-autoblade/blob/main/TODO.md) for the remaining release work.
 
 ## Scope
 
@@ -28,12 +28,13 @@ It is not a general-purpose airfoil editor, aerodynamic solver, or platform-inde
 
 ## Requirements
 
-- Windows
-- Python 3.14 or later
-- CATIA V5 with a working COM automation interface
+- Windows 11 x64
+- CPython 3.14 x64; the currently verified interpreter is Python 3.14.4
+- `pywin32` 311
+- CATIA P3 V5-6R2020 with a working COM automation interface and the required licenses
 - [`uv`](https://docs.astral.sh/uv/) for the documented environment workflow
 
-The project has been used with CATIA P3 V5-6R2020. Other CATIA V5 releases have not been documented as verified environments.
+This is the only currently verified preview baseline. Other Windows, Python, `pywin32`, processor-architecture, and CATIA combinations are unverified rather than implicitly supported. CATIA itself, its licenses, and COM registration are external prerequisites and are not included in this project. See the [distribution scope and support policy](https://github.com/Laxpud/catia-autoblade/blob/main/docs/distribution-scope.md) for the evidence and channel boundaries.
 
 Install `uv` on Windows with WinGet:
 
@@ -42,6 +43,8 @@ winget install --id=astral-sh.uv -e
 ```
 
 ## Installation
+
+There is no supported wheel or package-index release yet. The current installation path uses a source checkout:
 
 ```powershell
 uv sync
@@ -83,32 +86,34 @@ Build every discovered section definition; the explicit airfoil binds all six-co
 uv run autoblade batch --airfoil sc1095.csv
 ```
 
-Detailed options, interactive behavior, standalone compatibility entry points, previews, overwrite rules, and exit codes are documented in the [CLI reference](docs/cli.md).
+Detailed options, interactive behavior, standalone compatibility entry points, previews, overwrite rules, and exit codes are documented in the [CLI reference](https://github.com/Laxpud/catia-autoblade/blob/main/docs/cli.md).
 
 ## Input overview
 
-By default, airfoil CSV files belong in `input/airfoils/` and section parameter CSV files in `input/section_params/`; both locations are configurable. Coordinates, units, ordering, required columns, and current validation limits are documented in [Input data formats](docs/input-formats.md).
+By default, airfoil CSV files belong in `input/airfoils/` and section parameter CSV files in `input/section_params/`; both locations are configurable. Coordinates, units, ordering, required columns, and current validation limits are documented in [Input data formats](https://github.com/Laxpud/catia-autoblade/blob/main/docs/input-formats.md).
 
 ## Documentation
 
-- [Technical documentation index](docs/index.md)
-- [CLI reference](docs/cli.md)
-- [Design principles](docs/design-principles.md)
-- [Architecture](docs/architecture.md)
-- [Input data formats](docs/input-formats.md)
-- [Runtime configuration](docs/configuration.md)
-- [Automated testing](docs/testing.md)
-- [Active work and acceptance criteria](TODO.md)
+- [Technical documentation index](https://github.com/Laxpud/catia-autoblade/blob/main/docs/index.md)
+- [CLI reference](https://github.com/Laxpud/catia-autoblade/blob/main/docs/cli.md)
+- [Design principles](https://github.com/Laxpud/catia-autoblade/blob/main/docs/design-principles.md)
+- [Architecture](https://github.com/Laxpud/catia-autoblade/blob/main/docs/architecture.md)
+- [Input data formats](https://github.com/Laxpud/catia-autoblade/blob/main/docs/input-formats.md)
+- [Runtime configuration](https://github.com/Laxpud/catia-autoblade/blob/main/docs/configuration.md)
+- [Distribution scope and support policy](https://github.com/Laxpud/catia-autoblade/blob/main/docs/distribution-scope.md)
+- [Automated testing](https://github.com/Laxpud/catia-autoblade/blob/main/docs/testing.md)
+- [Active work and acceptance criteria](https://github.com/Laxpud/catia-autoblade/blob/main/TODO.md)
 
 ## Development checks
 
 The automated tests use COM fakes and do not require CATIA to be installed or running:
 
 ```powershell
-uv run --extra dev pytest -q
-uv run --extra dev ruff check src tests
+pwsh -File scripts/check.ps1
 ```
+
+This single entry runs pytest, Ruff, wheel/sdist builds, and distribution metadata validation. See [Automated testing](https://github.com/Laxpud/catia-autoblade/blob/main/docs/testing.md) for individual diagnostic commands and release-tag validation.
 
 ## License
 
-[MIT](LICENSE)
+[MIT](https://github.com/Laxpud/catia-autoblade/blob/main/LICENSE)

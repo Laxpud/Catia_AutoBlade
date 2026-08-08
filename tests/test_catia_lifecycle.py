@@ -3,8 +3,11 @@ from pathlib import Path
 import pytest
 
 from catia_autoblade.core import batch as batch_module
-from catia_autoblade.core import create_blade as create_module
-from catia_autoblade.core.catia_session import CatiaCleanupError, CatiaSession
+from catia_autoblade.adapters.cad.catia import builder as create_module
+from catia_autoblade.adapters.cad.catia.session import (
+    CatiaCleanupError,
+    CatiaSession,
+)
 from catia_autoblade.core.input_plan import AirfoilInput, BladeInputPlan
 
 

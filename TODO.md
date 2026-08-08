@@ -89,22 +89,26 @@
 
 ## 发布前置：工程一致性与支持范围
 
-- [ ] 明确首个可分发版本的受众、渠道和外部依赖边界。
+- [x] 明确首个可分发版本的受众、渠道和外部依赖边界。
   - 路线：先提供源码或内部 wheel，再验证 GitHub Release 和 TestPyPI，最后决定是否发布公共 PyPI；独立 EXE 只在目标用户明确不使用 Python/uv 时推进。
   - 验收：文档明确支持的 Windows、Python、`pywin32` 和 CATIA V5 组合，并声明 CATIA 本体、许可证和 COM 注册环境不属于分发产物。
   - 验收：`sweep`、多 CAD 后端和插件化不是首个预览版本的发布阻塞项，发布范围只承诺已经完成回归的能力。
-- [ ] 将跨平台核心与 Windows/CATIA Adapter 的依赖边界提升为稳定架构契约。
+  - 实现记录（2026-08-08）：新增 `docs/distribution-scope.md`，将首个制品固定为面向受控工程用户的内部 `v0.x` 预览 wheel；记录唯一已验证环境、源码到公共发布的分阶段路线、CATIA 外部依赖和首版非目标。中英文 README 与技术文档索引同步入口。
+- [x] 将跨平台核心与 Windows/CATIA Adapter 的依赖边界提升为稳定架构契约。
   - 契约：领域模型、单位与坐标变换、Parser、Validation、Planner 和 `BladeBuildJob` 不导入 `pythoncom`、`win32com` 或 CATIA COM 对象；CATIA 会话、几何特征和格式导出只存在于 `adapters/cad/catia/` 边界。
   - 契约：跨平台只承诺输入解析、校验、任务规划和后端无关计算，不表示能够在 Linux/macOS 上运行 CATIA 建模；请求不可用后端时必须返回明确的能力或平台错误。
   - 验收：首个 `catia-autoblade` 发行包仍明确标记为 Windows/CATIA 产品，不因内部核心可移植就宣称整个产品跨平台；出现第二个真实后端前不拆分多个发行包。
-- [ ] 统一 `pyproject.toml`、锁文件和实际运行环境的包元数据。
+  - 实现记录（2026-08-08）：CATIA Builder、会话、保存和导出迁移到 `adapters/cad/catia/`；核心新增纯米制坐标模块，旧导入路径仅延迟转发。平台边界测试确认顶层包及 Parser/Planner 导入不加载 COM，不可用后端返回 `CatiaBackendUnavailableError`。
+- [x] 统一 `pyproject.toml`、锁文件和实际运行环境的包元数据。
   - 验收：`requires-python` 与 Python classifiers 一致，操作系统改为 Windows，依赖范围与已验证版本相符，并补齐 Documentation、Issues 等项目链接。
   - 验收：当前 `catia-autoblade` 包保留 Windows 和 `pywin32` 依赖；只有未来独立的核心发行包才使用平台无关元数据，CATIA Adapter 不得使用 `OS Independent` classifier 或省略 Windows/CATIA 运行要求；wheel 文件标签本身不作为产品支持范围声明。
   - 验收：确认 PyPI 项目名可用，检查作者信息与 LICENSE 版权声明的关系，并验证 PyPI 长描述中的链接不会依赖仓库内相对路径。
   - 验收：动态版本仍由 `src/catia_autoblade/__init__.py` 提供，`autoblade --version`、wheel 元数据和 Git 标签报告同一版本。
-- [ ] 固化开发与发布检查入口，并维护最小兼容性表。
+  - 实现记录（2026-08-08）：Python 支持范围收敛为 3.14.x，平台 classifier 改为 Windows，`pywin32` 固定为 311，并补齐 Documentation 与 Issues 链接。PyPI 名称检查当日返回 404；作者元数据与 LICENSE 版权角色分别保留。新增 `autoblade --version` 和产物/标签一致性校验。
+- [x] 固化开发与发布检查入口，并维护最小兼容性表。
   - 验收：常规检查至少包含 `pytest`、`ruff`、Hatchling 构建和产物元数据检查，命令在开发文档和自动化环境中一致。
   - 验收：兼容性表记录 Windows、Python、`pywin32`、CATIA 版本/配置和验证日期；未验证组合不得在包元数据或安装文档中宣称支持。
+  - 实现记录（2026-08-08）：新增 `scripts/check.ps1` 与 Windows GitHub Actions 工作流，共享 pytest、Ruff、Hatchling 构建和 wheel/sdist 元数据检查；兼容性表由 `docs/distribution-scope.md` 维护。默认 pytest 共 97 项。
 
 ## 后续里程碑：建立可安装分发与发布链路
 

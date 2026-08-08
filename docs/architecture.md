@@ -2,9 +2,9 @@
 
 ## 系统边界
 
-CATIA AutoBlade 是运行在 Windows 上的 Python CLI。Python 负责读取输入、计算截面变换和编排流程；实际几何创建、Loft、实体封闭和格式导出由 CATIA V5 COM 对象完成。
+CATIA AutoBlade 的完整建模产品是运行在 Windows 上的 Python CLI。Python 负责读取输入、计算截面变换和编排流程；实际几何创建、Loft、实体封闭和格式导出由 CATIA V5 COM 对象完成。
 
-项目不包含独立几何内核。除少量坐标变换外，离开 CATIA 环境无法生成最终模型。
+Parser、Validation、Planner、任务模型和坐标计算不依赖 Windows COM，可在其他平台导入和测试；这只承诺跨平台预检与规划，不表示能在 Linux 或 macOS 上生成模型。项目不包含独立几何内核，离开受支持的 Windows/CATIA 环境无法生成最终模型。
 
 ## 调用链
 
@@ -13,7 +13,8 @@ Typer CLI
   -> commands / interactive：参数或交互选择、预览和执行确认
   -> Planner：解析 CSV、闭合输入引用并生成 BladeBuildJob
   -> Executor：执行一个或多个任务并汇总 BuildResult
-  -> core.create_blade：CATIA COM 调用、建模与导出
+  -> adapters.cad.catia.builder：CATIA 几何调用、建模与导出
+  -> adapters.cad.catia.session：Windows COM 与 CATIA 会话生命周期
   -> CATIA V5：CATPart 文档、HybridShape、Loft、CloseSurface
 ```
 
@@ -25,13 +26,21 @@ Typer CLI
 - `catia_autoblade.core.jobs`：定义已闭合的 `BladeBuildJob` 和结构化 `BuildResult`。
 - `catia_autoblade.core.planner`：完整解析输入、固定输出并检查同批次目标冲突。
 - `catia_autoblade.core.executor`：执行任务；批量模式记录单项失败并继续后续任务。
-- `catia_autoblade.core.catia_session`：独占 CATIA 实例并管理文档与 COM 生命周期。
+- `catia_autoblade.core.geometry`：后端无关的米制坐标变换和截面缩放。
 - `catia_autoblade.core.input_validation`：在启动 CATIA 前解析 CSV 并执行数据契约校验。
 - `catia_autoblade.core.input_plan`：解析受限跨文件引用，生成有序截面、唯一翼型和后缘拓扑计划。
-- `catia_autoblade.core.create_blade`：单叶片建模主流程和 CATIA COM 操作。
+- `catia_autoblade.adapters.cad.catia.builder`：CATIA 特征创建、单位边界、保存、导出和失败快照。
+- `catia_autoblade.adapters.cad.catia.session`：独占 CATIA 实例并管理文档与 COM 生命周期。
+- `catia_autoblade.core.create_blade` 与 `core.catia_session`：仅保留旧 Python 导入路径的延迟兼容转发，不包含 COM 实现。
 - `catia_autoblade.core.batch`：保留 Python 批处理入口，并转发到统一 Planner 与 Executor。
 - `catia_autoblade.config`：配置模型、TOML 持久化及运行时绝对路径解析。
 - `catia_autoblade.utils.file_scanner`：从配置的输入目录发现 CSV 文件。
+
+## 核心与 CATIA Adapter 边界
+
+`catia_autoblade.core` 不直接导入 `pythoncom`、`win32com` 或 CATIA COM 对象。领域长度统一使用 m，核心坐标函数只返回普通 Python 数值；`CATIA_MM_PER_METER` 和具体 mm 换算只存在于 CATIA Builder 的 Automation 调用边界。
+
+CATIA Builder 在输入计划完成后才延迟加载会话实现。因此仅导入顶层包、Parser、Validation、Planner、`BladeBuildJob` 或坐标函数不会加载 Windows COM；合法建模请求在非 Windows 或缺少 `pywin32` 时抛出 `CatiaBackendUnavailableError`，而不是泄漏裸 `ImportError`。当前发行包仍只声明为 Windows/CATIA 产品，平台无关核心不是独立发行包。
 
 ## 单叶片建模流程
 
@@ -87,4 +96,4 @@ Typer CLI
 
 - 同一叶片暂不支持混合尖后缘与钝后缘翼型。
 - 尖后缘通过首尾坐标精确相等判断，没有浮点容差。
-- 建模核心直接依赖动态 COM 对象，尚未形成便于单元测试的适配器边界。
+- CATIA Adapter 内部仍直接使用动态 COM 对象；当前没有第二个 Builder，也没有对外承诺的通用 CAD 插件接口。

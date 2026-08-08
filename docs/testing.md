@@ -1,22 +1,24 @@
 # 自动化测试
 
-项目的 `pytest` 基线不依赖已安装或正在运行的 CATIA。测试仍需 Windows 和项目依赖中的 `pywin32`，但所有 COM 应用创建都由 fake 或 mock 隔离。
+项目的 `pytest` 基线不依赖已安装或正在运行的 CATIA。核心导入、CSV、Planner 和坐标测试不需要 `pywin32`；完整测试矩阵在 Windows 上运行，并用 fake 或 mock 隔离所有 COM 应用创建。
 
 ## 运行命令
 
-直接安装开发依赖并执行测试：
+常规开发和发布前检查统一使用一个入口：
 
 ```powershell
-uv run --extra dev pytest -q
+pwsh -File scripts/check.ps1
 ```
 
-运行静态检查：
+该脚本按顺序执行冻结锁文件同步、pytest、Ruff、Hatchling wheel/sdist 构建和实际产物 `METADATA`/`PKG-INFO` 校验。`.github/workflows/checks.yml` 在 Windows CI 中调用同一脚本，不维护另一套命令。正式版本标签构建还应使用：
 
 ```powershell
-uv run --extra dev ruff check src tests
+pwsh -File scripts/check.ps1 -RequireTag
 ```
 
-也可以先执行一次 `uv sync --extra dev`，之后使用 `uv run pytest -q` 和 `uv run ruff check src tests`。
+`-RequireTag` 要求当前提交存在与 `src/catia_autoblade/__init__.py` 相同的 `0.1.1` 或 `v0.1.1` 标签。普通开发检查允许尚未打标签，但发现不一致的版本标签仍会失败。
+
+排查单个阶段时可分别使用 `uv run --extra dev pytest -q`、`uv run --extra dev ruff check src tests scripts`、`uv build` 和 `uv run python scripts/validate_distribution.py`。这些命令是诊断入口，完整验收仍以 `scripts/check.ps1` 为准。
 
 ## 分层回归策略
 
@@ -39,11 +41,14 @@ pytest 专用预期失败数据不得放入 `input/` 扫描目录。当前小型
 | `test_repository_inputs.py` | 版本化输入命名、89 行多翼型样例、引用完整性与唯一翼型顺序 |
 | `test_geometry_math.py` | m/mm 边界、截面缩放以及旋转→缩放→平移顺序 |
 | `test_multi_airfoil_geometry.py` | 唯一 CATIA 基准几何创建和逐截面引用编排 |
+| `test_platform_boundary.py` | 核心无 COM 导入、全新解释器导入和不可用 CATIA 后端能力错误 |
 | `test_runtime_config.py` | 配置路径、文件扫描、CLI 输出覆盖和输出命名 |
 | `test_cli.py` | 主命令、独立入口、长短选项与参数分派 |
 | `test_catia_lifecycle.py` | COM 初始化、文档关闭、应用退出、异常清理和批处理隔离 |
 
-`tests/conftest.py` 在每个测试中禁止调用真实 `win32com.client.Dispatch` 和 `DispatchEx`。如果未来新增代码绕过 mock 并尝试启动 CATIA，测试会立即失败，而不是在开发机上留下隐藏进程。
+`tests/conftest.py` 在已安装 `pywin32` 时禁止调用真实 `win32com.client.Dispatch` 和 `DispatchEx`。如果未来新增代码绕过 mock 并尝试启动 CATIA，测试会立即失败，而不是在开发机上留下隐藏进程。静态与全新解释器测试同时阻止核心层重新引入 COM 导入。
+
+预览支持组合及验证日期维护在[分发范围与支持策略](distribution-scope.md)的兼容性表中。仅有 pytest 通过不能扩大 CATIA 支持矩阵。
 
 ## 自动化与真实 CATIA 的边界
 

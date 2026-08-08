@@ -10,7 +10,7 @@ CATIA AutoBlade 是一个 Windows 命令行工具，用于根据翼型点云和�
 
 逐截面翼型解析、输入校验、唯一基准几何复用和截面选择已经实现。使用三种不同点数翼型的 89 截面样例已在 CATIA P3 V5-6R2020 中完成 Loft、实体封闭、CATPart 保存和 STEP AP242 导出。
 
-稳定单翼型和展向多翼型里程碑均已完成。剩余的工程一致性工作见 [TODO.md](../TODO.md)。
+稳定单翼型和展向多翼型里程碑均已完成。首个可分发目标是供已有合规 CATIA 环境的工程用户使用的内部 `v0.x` 预览 wheel；目前尚未支持公共包索引发布或独立可执行程序。剩余发布工作见[分发范围与支持策略](distribution-scope.md)和 [TODO.md](../TODO.md)。
 
 ## 功能范围
 
@@ -28,12 +28,13 @@ CATIA AutoBlade 当前提供：
 
 ## 环境要求
 
-- Windows
-- Python 3.14 或更高版本
-- CATIA V5，并且 COM 自动化接口可用
+- Windows 11 x64
+- CPython 3.14 x64；当前已验证解释器为 Python 3.14.4
+- `pywin32` 311
+- CATIA P3 V5-6R2020，并且 COM 自动化接口和所需许可证可用
 - 使用 [`uv`](https://docs.astral.sh/uv/) 执行文档中的环境管理流程
 
-项目已在 CATIA P3 V5-6R2020 中使用；其他 CATIA V5 版本尚未列为经过验证的环境。
+这是当前唯一经过验证的预览支持基线。其他 Windows、Python、`pywin32`、处理器架构和 CATIA 组合均属于未验证范围，不会被默认视为受支持。CATIA 本体、许可证和 COM 注册环境是外部前置条件，不包含在本项目中。证据与渠道边界见[分发范围与支持策略](distribution-scope.md)。
 
 可在 Windows 上通过 WinGet 安装 `uv`：
 
@@ -42,6 +43,8 @@ winget install --id=astral-sh.uv -e
 ```
 
 ## 安装
+
+目前没有受支持的 wheel 或包索引发行版，安装流程仍从源码 checkout 开始：
 
 ```powershell
 uv sync
@@ -96,6 +99,7 @@ uv run autoblade batch --airfoil sc1095.csv
 - [架构说明](architecture.md)
 - [输入数据格式](input-formats.md)
 - [运行时配置](configuration.md)
+- [分发范围与支持策略](distribution-scope.md)
 - [自动化测试](testing.md)
 - [活动任务与验收条件](../TODO.md)
 
@@ -104,9 +108,10 @@ uv run autoblade batch --airfoil sc1095.csv
 自动化测试使用 COM fake，不要求安装或运行 CATIA：
 
 ```powershell
-uv run --extra dev pytest -q
-uv run --extra dev ruff check src tests
+pwsh -File scripts/check.ps1
 ```
+
+该统一入口执行 pytest、Ruff、wheel/sdist 构建和分发元数据校验；单项诊断及版本标签检查见[自动化测试](testing.md)。
 
 ## 许可证
 

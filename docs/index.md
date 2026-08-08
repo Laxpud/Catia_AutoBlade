@@ -10,6 +10,7 @@
 - [输入数据格式](input-formats.md)：坐标系、CSV schema、单位、点序以及多翼型扩展状态。
 - [展向多翼型设计](multi-airfoil-design.md)：输入路径、文件命名、逐截面引用、兼容模式、批处理和 Loft 对齐策略。
 - [运行时配置](configuration.md)：配置来源、路径解析基准、CLI 覆盖优先级和输出命名模板。
+- [分发范围与支持策略](distribution-scope.md)：首个预览版本的目标用户、渠道、已验证环境、外部依赖和非目标。
 - [自动化测试](testing.md)：无 CATIA 测试入口、覆盖范围、COM 隔离和真实几何回归边界。
 
 ## 内容归属

@@ -14,6 +14,14 @@ uv run autoblade
 
 标准输入或输出不是 TTY 时，无参数调用不会等待输入，而是显示帮助并返回 2。自动化脚本应始终使用显式子命令。
 
+查看由 `src/catia_autoblade/__init__.py` 提供的安装版本：
+
+```powershell
+uv run autoblade --version
+```
+
+该命令不读取配置、不进入菜单，也不加载 CATIA COM 后端。
+
 ## 输入文件模式
 
 | 截面文件 | 是否需要 `--airfoil` | 含义 |

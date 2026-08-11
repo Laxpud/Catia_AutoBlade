@@ -1,5 +1,6 @@
 import typer
 import pytest
+from click import unstyle
 from typer.testing import CliRunner
 
 from catia_autoblade import cli
@@ -204,7 +205,7 @@ def test_config_set_missing_value_is_usage_error() -> None:
     )
 
     assert result.exit_code == 2
-    assert "requires both --key and --value" in result.output
+    assert "requires both --key and --value" in unstyle(result.output)
 
 
 def test_missing_repository_file_exits_one_on_stderr(

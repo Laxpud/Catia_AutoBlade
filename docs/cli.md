@@ -22,6 +22,43 @@ uv run autoblade --version
 
 该命令不读取配置、不进入菜单，也不加载 CATIA COM 后端。
 
+主入口可在子命令之前固定配置来源：
+
+```powershell
+autoblade --config C:\Engineering\blade-workspace\config.toml list
+```
+
+没有显式参数时依次使用当前工作区配置、用户级配置和内置默认值；完整优先级见
+[运行时配置](configuration.md)。
+
+## `init`
+
+```text
+autoblade init TARGET [--with-examples] [--force] [--interactive]
+```
+
+`TARGET` 必须显式给出。命令先展示所有受影响路径，然后在目标中创建
+`config.toml`、`input/airfoils/`、`input/section_params/` 和 `output/`；
+`--with-examples` 复制随 wheel 分发的最小只读模板。目标不能位于
+`site-packages` 内。
+
+已存在的受管理文件默认导致退出码 1，且执行前不创建任何计划项。`--force` 允许
+脚本替换这些明确列出的文件；`--interactive` 允许人工确认。两种方式都不会删除
+目标中的其他文件。安装、升级和卸载不会自动调用 `init`。
+
+## `doctor`
+
+```powershell
+autoblade doctor
+autoblade --config C:\Engineering\blade-workspace\config.toml doctor
+```
+
+诊断摘要覆盖 Windows/CPU、Python、`pywin32`、当前线程 COM 初始化、CATIA
+ProgID 注册、配置来源/schema、输入目录、输出写权限和支持基线。它只读注册表并
+配对 `CoInitialize`/`CoUninitialize`，不会调用 `Dispatch`/`DispatchEx`、连接
+用户会话或消耗 CATIA 许可证。明确缺失前置条件返回 1；需要人工确认 CATIA
+版本的 `WARN` 不单独导致失败。
+
 ## 输入文件模式
 
 | 截面文件 | 是否需要 `--airfoil` | 含义 |
@@ -100,9 +137,17 @@ uv run autoblade list --config
 uv run autoblade config show
 uv run autoblade config set --key output_dir --value generated
 uv run autoblade config reset
+uv run autoblade config migrate
+uv run autoblade config migrate --apply
 ```
 
-`show` 查看配置，`set` 需要同时提供 `--key` 与 `--value`，`reset` 恢复内置默认值。可设置键为 `input_dir`、`output_dir`、`airfoil_dir`、`section_params_dir`、`author` 和 `output_name_template`。路径解析规则见[运行时配置](configuration.md)。
+`show` 查看配置来源、schema 和持久化值；`set` 需要同时提供 `--key` 与
+`--value`；`reset` 恢复内置默认值。可设置键为 `input_dir`、`output_dir`、
+`airfoil_dir`、`section_params_dir`、`author` 和 `output_name_template`。
+
+`migrate` 默认只预览已知旧 schema 的字段变化；`--apply` 创建不覆盖已有文件的
+备份后原子迁移。未知字段、未来版本和预览后被其他进程修改的配置会安全失败。
+路径解析与兼容规则见[运行时配置](configuration.md)。
 
 ## 任务预览与覆盖
 
@@ -123,6 +168,8 @@ Planner 完成后、CATIA 启动前，命令输出：
 ```powershell
 uv run autoblade-create --airfoil sc1095.csv --section section_params-1.csv
 uv run autoblade-batch --airfoil sc1095.csv
+uv run autoblade-create --version
+uv run autoblade-batch --version
 ```
 
 新脚本优先使用主命令子命令形式；独立入口用于兼容既有调用。
@@ -131,8 +178,8 @@ uv run autoblade-batch --airfoil sc1095.csv
 
 | 退出码 | 含义 |
 | --- | --- |
-| 0 | 帮助、列表、配置或全部建模任务成功；交互操作安全取消 |
-| 1 | 输入校验、配置、Planner、建模、保存、导出或 batch 部分失败 |
+| 0 | 帮助、初始化、列表、配置、诊断或全部建模任务成功；交互操作安全取消 |
+| 1 | 初始化冲突、环境诊断、输入、配置、Planner、建模、保存、导出或 batch 部分失败 |
 | 2 | Typer 参数用法错误，或非 TTY 中无参数调用 |
 | 130 | 用户使用 `Ctrl+C` 中断 |
 

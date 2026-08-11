@@ -51,6 +51,58 @@ build-backend = "hatchling.build"
 [tool.hatch.version]
 path = "src/catia_autoblade/__init__.py"
 
+[tool.hatch.build]
+exclude = [
+    "/.git",
+    "/.pytest_cache",
+    "/.test-tmp-*",
+    "/.uv",
+    "/.venv",
+    "/build",
+    "/dist",
+    "/output",
+    "**/__pycache__",
+    "**/*.CATPart",
+    "**/*.CATProduct",
+    "**/*.log",
+    "**/*.stp",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/catia_autoblade"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/.github/workflows/checks.yml",
+    "/AGENTS.md",
+    "/LICENSE",
+    "/README.md",
+    "/TODO.md",
+    "/config.toml",
+    "/docs",
+    "/input/README.md",
+    "/input/airfoils/airfoil1_sharp.csv",
+    "/input/airfoils/airfoil1_sharp_dense_1000.csv",
+    "/input/airfoils/airfoil2_sharp.csv",
+    "/input/airfoils/airfoil3_sharp.csv",
+    "/input/airfoils/naca0012_sharp.csv",
+    "/input/airfoils/sc1095.csv",
+    "/input/airfoils/sc1095_sharp.csv",
+    "/input/airfoils/sd7032_sharp.csv",
+    "/input/section_params/section_params-1.csv",
+    "/input/section_params/section_params-2.csv",
+    "/input/section_params/section_params-3.csv",
+    "/input/section_params/section_params-4.csv",
+    "/input/section_params/section_params-5.csv",
+    "/input/section_params/section_params-multi-airfoil.csv",
+    "/input/section_params/section_params-naca.csv",
+    "/pyproject.toml",
+    "/scripts",
+    "/src",
+    "/tests",
+    "/uv.lock",
+]
+
 [[tool.uv.index]]
 name = "tsinghua"
 url = "https://pypi.tuna.tsinghua.edu.cn/simple"

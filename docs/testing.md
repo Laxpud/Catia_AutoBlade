@@ -10,15 +10,27 @@
 pwsh -File scripts/check.ps1
 ```
 
-该脚本按顺序执行冻结锁文件同步、pytest、Ruff、Hatchling wheel/sdist 构建和实际产物 `METADATA`/`PKG-INFO` 校验。`.github/workflows/checks.yml` 在 Windows CI 中调用同一脚本，不维护另一套命令。正式版本标签构建还应使用：
+该脚本按顺序执行冻结锁文件同步、pytest、Ruff、Hatchling wheel/sdist 构建、
+全新 Python 3.14 环境的非 editable wheel 安装冒烟，以及实际产物元数据和内容
+清单校验。安装冒烟会验证三个入口的 help/version、`autoblade init`、配置读取、
+输入发现、完整 Parser/Planner 预检和注入 fake Builder 的执行路径；它明确清空
+`PYTHONPATH` 并确认导入文件位于新环境的 `site-packages`。
+
+`.github/workflows/checks.yml` 在 Windows CI 中调用同一脚本，不维护另一套命令。
+诊断时可使用 `-SkipSync` 或 `-SkipInstalledSmoke` 缩小范围，但里程碑和发布验收
+不得跳过安装冒烟。正式版本标签构建还应使用：
 
 ```powershell
 pwsh -File scripts/check.ps1 -RequireTag
 ```
 
-`-RequireTag` 要求当前提交存在与 `src/catia_autoblade/__init__.py` 相同的 `0.1.1` 或 `v0.1.1` 标签。普通开发检查允许尚未打标签，但发现不一致的版本标签仍会失败。
+`-RequireTag` 要求当前提交存在与 `src/catia_autoblade/__init__.py` 相同的 `0.2.0` 或 `v0.2.0` 标签。普通开发检查允许尚未打标签，但发现不一致的版本标签仍会失败。
 
-排查单个阶段时可分别使用 `uv run --extra dev pytest -q`、`uv run --extra dev ruff check src tests scripts`、`uv build` 和 `uv run python scripts/validate_distribution.py`。这些命令是诊断入口，完整验收仍以 `scripts/check.ps1` 为准。
+排查单个阶段时可分别使用 `uv run --extra dev pytest -q`、`uv run --extra dev
+ruff check src tests scripts`、`uv build`、`pwsh -File
+scripts/smoke_installed_wheel.ps1 -WheelPath <wheel>` 和 `uv run python
+scripts/validate_distribution.py`。这些命令是诊断入口，完整验收仍以
+`scripts/check.ps1` 为准。
 
 ## 分层回归策略
 
@@ -43,6 +55,10 @@ pytest 专用预期失败数据不得放入 `input/` 扫描目录。当前小型
 | `test_multi_airfoil_geometry.py` | 唯一 CATIA 基准几何创建和逐截面引用编排 |
 | `test_platform_boundary.py` | 核心无 COM 导入、全新解释器导入和不可用 CATIA 后端能力错误 |
 | `test_runtime_config.py` | 配置路径、文件扫描、CLI 输出覆盖和输出命名 |
+| `test_config_compatibility.py` | 配置发现优先级、历史 schema、迁移备份、未来/未知/废弃字段和并发修改防护 |
+| `test_workspace_init.py` | 外部工作区、可选资源、覆盖授权、只读目录和 site-packages 隔离 |
+| `test_doctor.py` | 诊断摘要、COM 初始化配对、配置目录与失败退出边界 |
+| `test_distribution_workflow.py` | Hatchling 白名单、禁止产物路径和真实 CATIA 发布证据门槛 |
 | `test_cli.py` | 主命令、独立入口、长短选项与参数分派 |
 | `test_catia_lifecycle.py` | COM 初始化、文档关闭、应用退出、异常清理和批处理隔离 |
 
@@ -72,4 +88,24 @@ feature-tree / geometry observations:
 new CNEXT processes after exit:
 ```
 
+候选 wheel 的标准入口为：
+
+```powershell
+pwsh -File scripts/smoke_real_catia.ps1
+```
+
+该脚本只在维护者显式调用时运行。它从候选 wheel 创建独立环境，复制版本化的
+89 截面输入到外部临时工作区，执行真实建模，再通过第二个 `DispatchEx` 独占
+实例打开 CATPart，检查 `blade_loft_surface`、`blade_closed_solid`、
+`leading_edge_guide` 和 `trailing_edge_upper_guide`；同时检查 STEP 中的固体
+BREP 实体和运行前后新增 `CNEXT` PID。产物与
+JSON 记录保存在忽略的 `output/real-catia-smoke-<时间>/`，不能提交 Git。
+
 2026-08-07 已使用 CATIA P3 V5-6R2020 对 `section_params-multi-airfoil.csv` 执行真实回归：三个不同点数翼型完成 89 截面 Loft 和实体封闭，CATPart 与 STEP AP242 均成功输出；STEP 包含闭合实体 BREP，命令结束后没有残留 `CNEXT` 进程。详细记录见[展向多翼型设计](multi-airfoil-design.md)。
+
+2026-08-11 使用从 dirty worktree 构建并安装到全新 CPython 3.14.4 环境的
+`0.2.0` 候选 wheel 重复同一 89 截面回归：CATPart 为 7,689,114 字节，STEP 为 1,022,363
+字节并包含固体 BREP；重新打开 CATPart 后确认 `blade_loft_surface`、
+`blade_closed_solid`、`leading_edge_guide` 和 `trailing_edge_upper_guide`，运行前后
+新增 `CNEXT` 为 0。该记录证明候选 wheel 路径可行，但不替代最终干净标签提交的
+重新验证；本地产物位于忽略的 `output/real-catia-smoke-20260811-165054/`。

@@ -18,7 +18,9 @@ CATIA AutoBlade 是通过 CATIA V5 COM Automation 生成叶片模型的 Windows 
 | CSV schema、坐标系、单位和点序 | `docs/input-formats.md` |
 | 配置、路径和输出命名 | `docs/configuration.md` |
 | 测试分层与真实 CATIA 回归 | `docs/testing.md` |
+| 安装、工作区初始化和升级 | `docs/installation.md` |
 | 分发范围、支持矩阵和版本策略 | `docs/distribution-scope.md` |
+| 内部发布、验证记录和回滚 | `docs/releasing.md` |
 
 ## 工作流
 

@@ -1,4 +1,4 @@
-__version__ = "0.1.1"
+__version__ = "0.2.0"
 
 from .core.create_blade import create_single_blade
 from .core.batch import batch_create_blades

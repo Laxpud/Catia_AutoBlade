@@ -10,7 +10,7 @@ The project is an early working prototype. The single-airfoil workflow has been 
 
 Per-section airfoil parsing, validation, deduplicated base-geometry creation, and section selection are implemented. The 89-section sample using three different point counts has completed Loft, solid closing, CATPart saving, and STEP AP242 export with CATIA P3 V5-6R2020.
 
-The stable single-airfoil and spanwise multi-airfoil milestones are complete. The first distributable target is an internal `v0.x` preview wheel for engineering users who already operate a licensed CATIA environment; no public package-index or standalone executable release is supported yet. See the [distribution scope and support policy](https://github.com/Laxpud/catia-autoblade/blob/main/docs/distribution-scope.md) and [TODO.md](https://github.com/Laxpud/catia-autoblade/blob/main/TODO.md) for the remaining release work.
+The stable single-airfoil and spanwise multi-airfoil milestones are complete. The repository now provides auditable wheel/sdist manifests, external workspace initialization, clean-environment wheel smoke tests, configuration migration safeguards, diagnostics, and a gated internal release workflow. A particular wheel is supported only when it is delivered as a complete tagged artifact set with SHA-256 values and real CATIA validation evidence. No public package-index or standalone executable release is supported. See the [distribution scope and support policy](https://github.com/Laxpud/catia-autoblade/blob/main/docs/distribution-scope.md).
 
 ## Scope
 
@@ -44,12 +44,23 @@ winget install --id=astral-sh.uv -e
 
 ## Installation
 
-There is no supported wheel or package-index release yet. The current installation path uses a source checkout:
+Authorized internal preview artifacts are installed directly from their versioned wheel. Verify the supplied SHA-256 before installation:
+
+```powershell
+uv venv .venv --python 3.14
+uv pip install --python .venv\Scripts\python.exe .\catia_autoblade-0.2.0-py3-none-any.whl
+.\.venv\Scripts\Activate.ps1
+autoblade init C:\Engineering\blade-workspace --with-examples
+```
+
+Public PyPI installation is not supported. Maintainers working from a source checkout use:
 
 ```powershell
 uv sync
 uv pip install -e .
 ```
+
+Installation, workspace, upgrade, uninstall, and rollback details are in [Installation, workspaces, and upgrades](https://github.com/Laxpud/catia-autoblade/blob/main/docs/installation.md).
 
 ## Quick start
 
@@ -63,6 +74,12 @@ For scripts, list available input files:
 
 ```powershell
 uv run autoblade list
+```
+
+Diagnose the installed environment without starting or attaching to CATIA:
+
+```powershell
+uv run autoblade doctor
 ```
 
 Create one blade:
@@ -100,7 +117,9 @@ By default, airfoil CSV files belong in `input/airfoils/` and section parameter 
 - [Architecture](https://github.com/Laxpud/catia-autoblade/blob/main/docs/architecture.md)
 - [Input data formats](https://github.com/Laxpud/catia-autoblade/blob/main/docs/input-formats.md)
 - [Runtime configuration](https://github.com/Laxpud/catia-autoblade/blob/main/docs/configuration.md)
+- [Installation, workspaces, and upgrades](https://github.com/Laxpud/catia-autoblade/blob/main/docs/installation.md)
 - [Distribution scope and support policy](https://github.com/Laxpud/catia-autoblade/blob/main/docs/distribution-scope.md)
+- [Internal preview release and rollback](https://github.com/Laxpud/catia-autoblade/blob/main/docs/releasing.md)
 - [Automated testing](https://github.com/Laxpud/catia-autoblade/blob/main/docs/testing.md)
 - [Active work and acceptance criteria](https://github.com/Laxpud/catia-autoblade/blob/main/TODO.md)
 

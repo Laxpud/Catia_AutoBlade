@@ -1,6 +1,16 @@
 # 运行时配置
 
-根目录的 `config.toml` 是 CLI、文件扫描和核心建模 API 的默认配置来源。程序启动时在当前工作目录查找该文件；如果文件不存在，则使用与仓库默认配置等价的内置值。
+`config.toml` 是 CLI、文件扫描和核心建模 API 的配置来源。主 CLI 每次调用按
+以下稳定优先级发现一次配置，所有子命令和交互菜单复用同一结果：
+
+1. 顶层显式 `autoblade --config PATH ...`；
+2. 启动目录中的 `config.toml`；
+3. 用户级 `%APPDATA%\catia-autoblade\config.toml`；
+4. 内置默认值。
+
+显式相对配置路径按启动目录解析。内置默认值不会自动写入磁盘，其输入和输出
+相对路径仍以启动目录为基准。需要长期可编辑的工作区时，应使用 `autoblade init
+<显式目标>`，不要依赖当前目录偶然存在的文件。
 
 ## 路径解析
 
@@ -28,7 +38,29 @@ section_params_dir = "section_params"
 
 ## CLI 覆盖优先级
 
-`create` 和 `batch` 的 `--output` 显式参数覆盖配置输出目录。未传该参数时，普通模式和交互模式都以 `paths.output_dir` 为默认值。六列截面文件通过 `--airfoil` 绑定一个翼型；包含 `airfoil` 列的文件自行定义全部截面引用，不能再与 `create --airfoil` 组合。`batch --airfoil` 只绑定同批次的六列模板，不改变自包含文件。候选文件始终从配置的两个输入目录扫描。
+顶层 `--config` 先固定配置来源；`create` 和 `batch` 的 `--output` 再覆盖该配置
+的输出目录。未传输出参数时，普通模式和交互模式都以 `paths.output_dir` 为默认
+值。六列截面文件通过 `--airfoil` 绑定一个翼型；包含 `airfoil` 列的文件自行
+定义全部截面引用，不能再与 `create --airfoil` 组合。`batch --airfoil` 只绑定
+同批次的六列模板，不改变自包含文件。候选文件始终从选中配置的两个输入目录
+扫描。
+
+## 配置 schema 与兼容性
+
+`AppConfig.version` 是持久化配置格式版本，不是包的 `__version__`。当前 schema
+为 `2.0.0`，它固定专用输入目录相对 `paths.input_dir` 解析的语义。
+
+历史 `1.0.0` 配置曾把 `paths.airfoil_dir` 写为 `input\airfoils`，同时运行时又
+以 `input_dir` 拼接，升级后可能得到错误的 `input/input/airfoils`。当前程序会：
+
+- 在内存中把已知 `1.0.0` 或无版本配置转换为当前模型，保证普通读取和路径结果
+  稳定，但不改写原文件；
+- 对旧 schema 发出迁移提示，并阻止 `config set`、`config reset` 顺便升级；
+- 拒绝未知字段，避免旧程序忽略新版数据后在保存时将其删除；
+- 对已登记的废弃字段报告明确替代项；当前没有仍可静默接受的废弃字段；
+- 对高于 `2.0.0` 的配置安全失败并要求升级程序；对未支持的旧版本同样失败。
+
+只有真实存在的 `1.0.0 → 2.0.0` 迁移被实现，没有通用插件式迁移框架。
 
 ## 输出命名模板
 
@@ -51,6 +83,13 @@ uv run autoblade config show
 uv run autoblade config set --key output_dir --value generated
 uv run autoblade config set --key output_name_template --value "{blade}"
 uv run autoblade config reset
+uv run autoblade config migrate
+uv run autoblade config migrate --apply
 ```
 
-`config show` 显示持久化的原始值，而不是解析后的绝对路径，便于确认配置文件是否仍可跨目录移动。
+`config show` 显示来源、schema 和持久化值，而不是解析后的绝对路径，便于确认
+配置文件是否仍可跨目录移动。`config migrate` 默认只预览字段级变化；`--apply`
+先验证文件自预览后没有变化，创建 `config.toml.v<旧版本>.bak[.N]`，再通过同目录
+临时文件原子替换。迁移不会读取、移动或覆盖翼型、截面参数、CATPart 或 STEP。
+
+完整的安装、升级、卸载和回滚流程见[安装、工作区与升级](installation.md)。

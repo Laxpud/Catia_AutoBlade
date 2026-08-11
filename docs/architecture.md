@@ -10,6 +10,7 @@ Parser、Validation、Planner、任务模型和坐标计算不依赖 Windows COM
 
 ```text
 Typer CLI
+  -> init / config / doctor：外部工作区、schema 与无 CATIA 环境诊断
   -> commands / interactive：参数或交互选择、预览和执行确认
   -> Planner：解析 CSV、闭合输入引用并生成 BladeBuildJob
   -> Executor：执行一个或多个任务并汇总 BuildResult
@@ -34,6 +35,12 @@ Typer CLI
 - `catia_autoblade.core.create_blade` 与 `core.catia_session`：仅保留旧 Python 导入路径的延迟兼容转发，不包含 COM 实现。
 - `catia_autoblade.core.batch`：保留 Python 批处理入口，并转发到统一 Planner 与 Executor。
 - `catia_autoblade.config`：配置模型、TOML 持久化及运行时绝对路径解析。
+- `catia_autoblade.resources`：wheel 内不可变的工作区配置和最小 CSV 模板；只能
+  由 `autoblade init` 复制到包外目标。
+- `catia_autoblade.commands.initialize`：完整预览、冲突授权和原子复制，不删除
+  目标中的其他用户文件。
+- `catia_autoblade.commands.doctor`：Windows/Python/COM/注册表/配置/目录诊断；
+  不创建 CATIA Automation 应用。
 - `catia_autoblade.utils.file_scanner`：从配置的输入目录发现 CSV 文件。
 
 ## 核心与 CATIA Adapter 边界
@@ -75,6 +82,22 @@ CATIA Builder 在输入计划完成后才延迟加载会话实现。因此仅导
 当前没有共享 CATIA 会话、失败重试、事务式输出或断点续跑。某一任务失败会先释放其独立 CATIA 会话、记录结构化失败结果，然后继续处理其他任务；只要存在失败，批处理进程最终返回 1。
 
 命令和模型输入的稳定职责见[设计原则](design-principles.md)，参数及退出码见 [CLI 参考](cli.md)。
+
+## 安装工作区与配置生命周期
+
+安装包和用户数据采用单向复制边界：wheel 内只保存版本控制的不可变模板，
+`autoblade init` 将其复制到显式、位于 `site-packages` 外的工作区。运行时只读
+用户工作区；包安装器升级或卸载时不会拥有配置、输入、输出或模型文件。
+
+主 CLI 按显式路径、当前工作区、用户级配置和内置默认值发现一次配置，并把同一
+`ConfigManager` 传给子命令。配置相对路径始终由选中配置文件的位置决定，不随
+交互流程中的目录变化漂移。
+
+配置 schema 独立于包版本。加载器先检查 `AppConfig.version`，再交给严格的
+Pydantic 模型；未知字段和未来版本不能被忽略。历史 schema 可在内存中兼容读取，
+但任何持久化前必须显式预览并应用迁移。迁移使用源文件 SHA-256 防止预览后的
+并发修改，先复制不覆盖的备份，再以同目录临时文件原子替换；输入和输出树不参与
+迁移。
 
 ## 几何约束
 

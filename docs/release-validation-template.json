@@ -1,0 +1,19 @@
+{
+  "version": "<source __version__>",
+  "commit": "<full tagged commit sha>",
+  "dirty_worktree": false,
+  "repository_check": "pass",
+  "installed_wheel_smoke": "pass",
+  "catia_smoke": {
+    "date": "YYYY-MM-DD",
+    "windows": "Windows 11 x64 build ...",
+    "python": "CPython 3.14.x x64",
+    "pywin32": "311",
+    "catia": "CATIA P3 V5-6R2020",
+    "input_model": "section_params-multi-airfoil.csv",
+    "catpart_result": "pass: <path or artifact id>",
+    "step_result": "pass: closed solid BREP",
+    "feature_tree": "pass: <observations>",
+    "new_cnext_processes": 0
+  }
+}

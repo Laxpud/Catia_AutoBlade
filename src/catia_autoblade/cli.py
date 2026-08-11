@@ -1,5 +1,7 @@
 import sys
 from collections.abc import Callable
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Annotated
 
 import typer
@@ -10,6 +12,23 @@ app = typer.Typer(
     invoke_without_command=True,
     no_args_is_help=False,
 )
+
+
+@dataclass(frozen=True)
+class CliState:
+    """一次 CLI 调用固定使用同一个配置来源，避免子命令重新发现。"""
+
+    config_manager: object
+
+
+def _get_config_manager(ctx: typer.Context):
+    """独立兼容入口没有顶层 callback，因此允许回退到常规发现。"""
+    from .config.manager import ConfigManager
+
+    root = ctx.find_root()
+    if isinstance(root.obj, CliState):
+        return root.obj.config_manager
+    return ConfigManager.discover()
 
 
 def is_interactive_terminal() -> bool:
@@ -47,6 +66,13 @@ def main(
             is_eager=True,
         ),
     ] = False,
+    config_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--config",
+            help="Use this configuration file instead of discovery.",
+        ),
+    ] = None,
 ) -> None:
     """Open the interactive menu when no explicit subcommand is provided."""
     if version:
@@ -54,6 +80,11 @@ def main(
 
         typer.echo(f"catia-autoblade {__version__}")
         raise typer.Exit()
+    from .config.manager import ConfigManager
+
+    ctx.obj = CliState(
+        ConfigManager.discover(explicit_config=config_path)
+    )
     if ctx.invoked_subcommand is not None:
         return
     if not is_interactive_terminal():
@@ -62,11 +93,12 @@ def main(
 
     from .interactive.menu import run_main_menu
 
-    _run_cli(run_main_menu)
+    _run_cli(lambda: run_main_menu(_get_config_manager(ctx)))
 
 
 @app.command()
 def create(
+    ctx: typer.Context,
     airfoil: Annotated[str | None, typer.Option("--airfoil", "-a")] = None,
     section: Annotated[str | None, typer.Option("--section", "-s")] = None,
     output: Annotated[str | None, typer.Option("--output", "-o")] = None,
@@ -78,8 +110,21 @@ def create(
             help="Save a CATPart snapshot when CATIA modeling fails.",
         ),
     ] = False,
+    command_version: Annotated[
+        bool,
+        typer.Option(
+            "--version",
+            help="Show the installed CATIA AutoBlade version and exit.",
+            is_eager=True,
+        ),
+    ] = False,
 ) -> None:
     """Create one blade from one explicit model definition."""
+    if command_version:
+        from . import __version__
+
+        typer.echo(f"catia-autoblade {__version__}")
+        return
     from .commands.create import run_create_command
 
     _run_cli(
@@ -89,19 +134,34 @@ def create(
             output,
             interactive,
             keep_failed_part,
+            config_manager=_get_config_manager(ctx),
         )
     )
 
 
 @app.command()
 def batch(
+    ctx: typer.Context,
     airfoil: Annotated[str | None, typer.Option("--airfoil", "-a")] = None,
     section: Annotated[str | None, typer.Option("--section", "-s")] = None,
     output: Annotated[str | None, typer.Option("--output", "-o")] = None,
     list_files: Annotated[bool, typer.Option("--list", "-l")] = False,
     interactive: Annotated[bool, typer.Option("--interactive", "-i")] = False,
+    command_version: Annotated[
+        bool,
+        typer.Option(
+            "--version",
+            help="Show the installed CATIA AutoBlade version and exit.",
+            is_eager=True,
+        ),
+    ] = False,
 ) -> None:
     """Build multiple closed model definitions without parameter combinations."""
+    if command_version:
+        from . import __version__
+
+        typer.echo(f"catia-autoblade {__version__}")
+        return
     from .commands.batch import run_batch_command
 
     _run_cli(
@@ -111,37 +171,108 @@ def batch(
             output,
             list_files,
             interactive,
+            config_manager=_get_config_manager(ctx),
         )
     )
 
 
 @app.command("list")
 def list_inputs(
+    ctx: typer.Context,
     config_show: Annotated[bool, typer.Option("--config")] = False,
 ) -> None:
     """List available files or configuration."""
     from .commands.list import run_list_command
 
-    _run_cli(lambda: run_list_command(config_show))
+    _run_cli(
+        lambda: run_list_command(
+            config_show,
+            config_manager=_get_config_manager(ctx),
+        )
+    )
 
 
 @app.command()
 def config(
+    ctx: typer.Context,
     action: Annotated[str, typer.Argument()] = ...,
     key: Annotated[str | None, typer.Option("--key", "-k")] = None,
     value: Annotated[str | None, typer.Option("--value", "-v")] = None,
+    apply: Annotated[
+        bool,
+        typer.Option(
+            "--apply",
+            help="Apply a previewed schema migration and create a backup.",
+        ),
+    ] = False,
 ) -> None:
-    """Manage configuration file (show, set, reset)."""
-    if action not in {"show", "set", "reset"}:
-        raise typer.BadParameter("action must be one of: show, set, reset")
+    """Manage configuration file (show, set, reset, migrate)."""
+    if action not in {"show", "set", "reset", "migrate"}:
+        raise typer.BadParameter(
+            "action must be one of: show, set, reset, migrate"
+        )
     if action == "set" and (key is None or value is None):
         raise typer.BadParameter(
             "config set requires both --key and --value"
         )
+    if apply and action != "migrate":
+        raise typer.BadParameter("--apply is only valid for config migrate")
 
     from .commands.config import run_config_command
 
-    _run_cli(lambda: run_config_command(action, key, value))
+    _run_cli(
+        lambda: run_config_command(
+            action,
+            key,
+            value,
+            apply,
+            config_manager=_get_config_manager(ctx),
+        )
+    )
+
+
+@app.command("init")
+def initialize_workspace(
+    target: Annotated[
+        Path,
+        typer.Argument(help="Explicit directory for the new modeling workspace."),
+    ],
+    with_examples: Annotated[
+        bool,
+        typer.Option(help="Copy the immutable minimal CSV examples."),
+    ] = False,
+    force: Annotated[
+        bool,
+        typer.Option(help="Replace only managed template files after preview."),
+    ] = False,
+    interactive: Annotated[
+        bool,
+        typer.Option("--interactive", "-i", help="Confirm managed-file conflicts."),
+    ] = False,
+) -> None:
+    """Create an editable workspace outside the installed package."""
+    from .commands.initialize import run_init_command
+
+    _run_cli(
+        lambda: run_init_command(
+            target,
+            with_examples=with_examples,
+            force=force,
+            interactive=interactive,
+        )
+    )
+
+
+@app.command()
+def doctor(ctx: typer.Context) -> None:
+    """Diagnose the installation without starting or attaching to CATIA."""
+    from .commands.doctor import run_doctor_command
+
+    _run_cli(
+        lambda: run_doctor_command(
+            config_manager=_get_config_manager(ctx),
+        )
+    )
 
 
 def create_entrypoint() -> None:

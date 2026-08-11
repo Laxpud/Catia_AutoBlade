@@ -6,6 +6,7 @@ import argparse
 import ast
 from email.message import Message
 from email.parser import Parser
+import hashlib
 import os
 from pathlib import Path
 import re
@@ -22,6 +23,41 @@ VERSION_PATH = PROJECT_ROOT / "src" / "catia_autoblade" / "__init__.py"
 README_PATH = PROJECT_ROOT / "README.md"
 EXPECTED_PROJECT_NAME = "catia-autoblade"
 EXPECTED_REQUIRES_PYTHON = ">=3.14,<3.15"
+REQUIRED_WHEEL_FILES = {
+    "catia_autoblade/resources/workspace/config.toml",
+    "catia_autoblade/resources/workspace/airfoils/example-airfoil.csv",
+    (
+        "catia_autoblade/resources/workspace/section_params/"
+        "section_params-example.csv"
+    ),
+}
+REQUIRED_SDIST_PATHS = {
+    "LICENSE",
+    "README.md",
+    "pyproject.toml",
+    "uv.lock",
+    "scripts/check.ps1",
+    "scripts/validate_distribution.py",
+    "src/catia_autoblade/__init__.py",
+    "tests/conftest.py",
+}
+FORBIDDEN_PARTS = {
+    ".git",
+    ".pytest_cache",
+    ".uv",
+    ".venv",
+    "build",
+    "dist",
+    "output",
+    "__pycache__",
+}
+FORBIDDEN_SUFFIXES = {
+    ".catpart",
+    ".catproduct",
+    ".log",
+    ".pyc",
+    ".stp",
+}
 
 
 class ValidationError(RuntimeError):
@@ -64,6 +100,22 @@ def _read_wheel_metadata(dist_dir: Path, version: str) -> Message:
             )
         content = archive.read(metadata_names[0]).decode("utf-8")
     return Parser().parsestr(content)
+
+
+def _wheel_path(dist_dir: Path, version: str) -> Path:
+    wheels = sorted(dist_dir.glob(f"catia_autoblade-{version}-*.whl"))
+    if len(wheels) != 1:
+        raise ValidationError(
+            f"Expected exactly one wheel for {version}, found {len(wheels)}"
+        )
+    return wheels[0]
+
+
+def _sdist_path(dist_dir: Path, version: str) -> Path:
+    path = dist_dir / f"catia_autoblade-{version}.tar.gz"
+    if not path.is_file():
+        raise ValidationError(f"Expected sdist not found: {path}")
+    return path
 
 
 def _read_sdist_metadata(dist_dir: Path, version: str) -> Message:
@@ -156,6 +208,28 @@ def _validate_pyproject() -> None:
     version_path = data["tool"]["hatch"]["version"]["path"]
     if version_path != "src/catia_autoblade/__init__.py":
         raise ValidationError("Hatchling version path differs from source contract")
+    wheel_packages = data["tool"]["hatch"]["build"]["targets"]["wheel"][
+        "packages"
+    ]
+    if wheel_packages != ["src/catia_autoblade"]:
+        raise ValidationError("wheel package whitelist changed unexpectedly")
+    sdist_include = set(
+        data["tool"]["hatch"]["build"]["targets"]["sdist"]["include"]
+    )
+    required_sdist_sources = {
+        "/LICENSE",
+        "/README.md",
+        "/pyproject.toml",
+        "/src",
+        "/tests",
+        "/scripts",
+        "/uv.lock",
+    }
+    if not required_sdist_sources <= sdist_include:
+        raise ValidationError(
+            "sdist whitelist is missing rebuild sources: "
+            f"{sorted(required_sdist_sources - sdist_include)}"
+        )
 
 
 def _validate_readme_links() -> None:
@@ -197,6 +271,102 @@ def _validate_cli_version(version: str) -> None:
         )
 
 
+def _validate_distribution_contents(dist_dir: Path, version: str) -> None:
+    """校验归档白名单并写出排序清单，便于发布审计和重复构建比较。"""
+    wheel_path = _wheel_path(dist_dir, version)
+    sdist_path = _sdist_path(dist_dir, version)
+    with ZipFile(wheel_path) as archive:
+        wheel_names = sorted(archive.namelist())
+        _validate_archive_names(wheel_names, artifact="wheel")
+        missing_wheel = REQUIRED_WHEEL_FILES - set(wheel_names)
+        if missing_wheel:
+            raise ValidationError(
+                f"wheel missing initialization resources: {sorted(missing_wheel)}"
+            )
+        allowed_prefixes = (
+            "catia_autoblade/",
+            f"catia_autoblade-{version}.dist-info/",
+        )
+        unexpected = [
+            name for name in wheel_names if not name.startswith(allowed_prefixes)
+        ]
+        if unexpected:
+            raise ValidationError(f"wheel contains unexpected roots: {unexpected}")
+        _validate_no_local_path_leak(
+            ((name, archive.read(name)) for name in wheel_names),
+            artifact="wheel",
+        )
+
+    sdist_root = f"catia_autoblade-{version}/"
+    with tarfile.open(sdist_path, "r:gz") as archive:
+        file_members = [member for member in archive.getmembers() if member.isfile()]
+        sdist_names = sorted(member.name for member in file_members)
+        _validate_archive_names(sdist_names, artifact="sdist")
+        relative_names = {
+            name.removeprefix(sdist_root)
+            for name in sdist_names
+            if name.startswith(sdist_root)
+        }
+        missing_sdist = REQUIRED_SDIST_PATHS - relative_names
+        if missing_sdist:
+            raise ValidationError(
+                f"sdist missing rebuild sources: {sorted(missing_sdist)}"
+            )
+
+        def sdist_contents():
+            for member in file_members:
+                extracted = archive.extractfile(member)
+                if extracted is not None:
+                    yield member.name, extracted.read()
+
+        _validate_no_local_path_leak(sdist_contents(), artifact="sdist")
+
+    _write_content_manifest(dist_dir, wheel_path.name, wheel_names)
+    _write_content_manifest(dist_dir, sdist_path.name, sdist_names)
+
+
+def _validate_archive_names(names: list[str], *, artifact: str) -> None:
+    for name in names:
+        normalized = name.replace("\\", "/")
+        parts = {part.lower() for part in normalized.split("/")}
+        if normalized.startswith("/") or re.match(r"^[A-Za-z]:", normalized):
+            raise ValidationError(f"{artifact} contains absolute path: {name}")
+        forbidden = parts & FORBIDDEN_PARTS
+        if forbidden:
+            raise ValidationError(
+                f"{artifact} contains forbidden path {name}: {sorted(forbidden)}"
+            )
+        if any(normalized.lower().endswith(suffix) for suffix in FORBIDDEN_SUFFIXES):
+            raise ValidationError(f"{artifact} contains forbidden file: {name}")
+
+
+def _validate_no_local_path_leak(contents, *, artifact: str) -> None:
+    local_markers = {
+        str(PROJECT_ROOT).encode("utf-8"),
+        str(PROJECT_ROOT).replace("\\", "/").encode("utf-8"),
+    }
+    for name, content in contents:
+        if any(marker and marker in content for marker in local_markers):
+            raise ValidationError(
+                f"{artifact} member leaks the local repository path: {name}"
+            )
+
+
+def _write_content_manifest(
+    dist_dir: Path,
+    artifact_name: str,
+    names: list[str],
+) -> None:
+    content = "\n".join(names) + "\n"
+    digest = hashlib.sha256(content.encode("utf-8")).hexdigest()
+    manifest = dist_dir / f"{artifact_name}.contents.txt"
+    manifest.write_text(content, encoding="utf-8", newline="\n")
+    print(
+        f"Artifact contents: {artifact_name} ({len(names)} files, "
+        f"manifest sha256={digest}) -> {manifest.name}"
+    )
+
+
 def _validate_git_tag(version: str, *, require_tag: bool) -> None:
     result = subprocess.run(
         ["git", "tag", "--points-at", "HEAD"],
@@ -233,6 +403,7 @@ def validate(dist_dir: Path, *, require_tag: bool) -> None:
     _validate_git_tag(version, require_tag=require_tag)
     _validate_metadata(_read_wheel_metadata(dist_dir, version), version, "wheel")
     _validate_metadata(_read_sdist_metadata(dist_dir, version), version, "sdist")
+    _validate_distribution_contents(dist_dir, version)
     print(
         f"Distribution metadata valid: {EXPECTED_PROJECT_NAME} {version} "
         f"(tag required: {require_tag})"

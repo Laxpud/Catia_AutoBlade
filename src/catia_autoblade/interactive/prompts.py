@@ -118,3 +118,14 @@ def confirm_config_reset() -> bool:
             default=False,
         )
     )
+
+
+def confirm_workspace_overwrite(paths: list[Path]) -> bool:
+    """确认只覆盖初始化器明确列出的受管理模板文件。"""
+    joined = ", ".join(str(path) for path in paths)
+    return _ask(
+        questionary.confirm(
+            f"Replace these managed workspace files: {joined}?",
+            default=False,
+        )
+    )

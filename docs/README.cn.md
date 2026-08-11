@@ -10,7 +10,7 @@ CATIA AutoBlade 是一个 Windows 命令行工具，用于根据翼型点云和�
 
 逐截面翼型解析、输入校验、唯一基准几何复用和截面选择已经实现。使用三种不同点数翼型的 89 截面样例已在 CATIA P3 V5-6R2020 中完成 Loft、实体封闭、CATPart 保存和 STEP AP242 导出。
 
-稳定单翼型和展向多翼型里程碑均已完成。首个可分发目标是供已有合规 CATIA 环境的工程用户使用的内部 `v0.x` 预览 wheel；目前尚未支持公共包索引发布或独立可执行程序。剩余发布工作见[分发范围与支持策略](distribution-scope.md)和 [TODO.md](../TODO.md)。
+稳定单翼型和展向多翼型里程碑均已完成。仓库现已提供可审计的 wheel/sdist 清单、外部工作区初始化、全新环境 wheel 冒烟、配置迁移保护、环境诊断和带门槛的内部发布流程。某个具体 wheel 只有作为带标签、SHA-256 和真实 CATIA 验证证据的完整制品集交付时才属于受支持内部版本。目前不支持公共包索引或独立可执行程序。边界见[分发范围与支持策略](distribution-scope.md)。
 
 ## 功能范围
 
@@ -44,12 +44,23 @@ winget install --id=astral-sh.uv -e
 
 ## 安装
 
-目前没有受支持的 wheel 或包索引发行版，安装流程仍从源码 checkout 开始：
+经过授权的内部预览制品通过版本化 wheel 直接安装。安装前应核对随制品提供的 SHA-256：
+
+```powershell
+uv venv .venv --python 3.14
+uv pip install --python .venv\Scripts\python.exe .\catia_autoblade-0.2.0-py3-none-any.whl
+.\.venv\Scripts\Activate.ps1
+autoblade init C:\Engineering\blade-workspace --with-examples
+```
+
+当前不支持公共 PyPI 安装。维护者从源码 checkout 开发时使用：
 
 ```powershell
 uv sync
 uv pip install -e .
 ```
+
+完整的安装、工作区、升级、卸载和回滚流程见[安装、工作区与升级](installation.md)。
 
 ## 快速开始
 
@@ -63,6 +74,12 @@ uv run autoblade
 
 ```powershell
 uv run autoblade list
+```
+
+在不启动或连接 CATIA 的前提下诊断安装环境：
+
+```powershell
+uv run autoblade doctor
 ```
 
 创建一个叶片：
@@ -99,7 +116,9 @@ uv run autoblade batch --airfoil sc1095.csv
 - [架构说明](architecture.md)
 - [输入数据格式](input-formats.md)
 - [运行时配置](configuration.md)
+- [安装、工作区与升级](installation.md)
 - [分发范围与支持策略](distribution-scope.md)
+- [内部 preview 发布与回滚](releasing.md)
 - [自动化测试](testing.md)
 - [活动任务与验收条件](../TODO.md)
 

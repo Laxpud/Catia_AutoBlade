@@ -3,7 +3,7 @@ import typer
 from .prompts import PromptCancelled
 
 
-def run_main_menu() -> None:
+def run_main_menu(config_manager=None) -> None:
     """运行一次操作后返回顶层菜单，直到用户明确退出。"""
     from .prompts import select_main_action
 
@@ -16,7 +16,7 @@ def run_main_menu() -> None:
             continue
 
         try:
-            _run_menu_action(action)
+            _run_menu_action(action, config_manager=config_manager)
         except PromptCancelled as error:
             typer.echo(f"[INFO] {error}")
         except KeyboardInterrupt:
@@ -27,26 +27,39 @@ def run_main_menu() -> None:
             typer.echo(f"[ERROR] {error}", err=True)
 
 
-def _run_menu_action(action: str) -> None:
+def _run_menu_action(action: str, *, config_manager=None) -> None:
     if action == "create":
         from ..commands.create import run_create_command
 
-        run_create_command(None, None, None, True)
+        run_create_command(
+            None,
+            None,
+            None,
+            True,
+            config_manager=config_manager,
+        )
     elif action == "batch":
         from ..commands.batch import run_batch_command
 
-        run_batch_command(None, None, None, False, True)
+        run_batch_command(
+            None,
+            None,
+            None,
+            False,
+            True,
+            config_manager=config_manager,
+        )
     elif action == "list":
         from ..commands.list import run_list_command
 
-        run_list_command(False)
+        run_list_command(False, config_manager=config_manager)
     elif action == "config":
-        _run_config_menu()
+        _run_config_menu(config_manager=config_manager)
     else:
         raise ValueError(f"Unknown menu action: {action}")
 
 
-def _run_config_menu() -> None:
+def _run_config_menu(*, config_manager=None) -> None:
     from ..commands.config import CONFIG_KEYS, run_config_command
     from ..config.manager import ConfigManager
     from .prompts import (
@@ -60,14 +73,24 @@ def _run_config_menu() -> None:
     if action == "back":
         return
     if action == "show":
-        run_config_command("show", None, None)
+        run_config_command(
+            "show",
+            None,
+            None,
+            config_manager=config_manager,
+        )
         return
     if action == "reset":
         if confirm_config_reset():
-            run_config_command("reset", None, None)
+            run_config_command(
+                "reset",
+                None,
+                None,
+                config_manager=config_manager,
+            )
         return
 
-    manager = ConfigManager()
+    manager = config_manager or ConfigManager()
     config = manager.load()
     key = select_config_key(list(CONFIG_KEYS))
     owner = config.paths if hasattr(config.paths, key) else config.defaults

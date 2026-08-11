@@ -1,5 +1,6 @@
 ﻿param(
     [switch]$SkipSync,
+    [switch]$SkipInstalledSmoke,
     [switch]$RequireTag,
     [string]$CacheDir
 )
@@ -62,7 +63,28 @@ try {
     )
 
     # 3. 构建后从实际 wheel/sdist 读取 METADATA，而不是只检查 pyproject 文本。
-    Invoke-UvStep -Name "Build wheel and sdist" -Arguments @("build")
+    Invoke-UvStep -Name "Build wheel and sdist" -Arguments @("build", "--clear")
+    if (-not $SkipInstalledSmoke) {
+        $sourceVersion = (& $uvExecutable run --frozen python -c `
+            "from catia_autoblade import __version__; print(__version__)"
+        ).Trim()
+        if ($LASTEXITCODE -ne 0) {
+            throw "Read source version failed with exit code $LASTEXITCODE."
+        }
+        $wheel = @(
+            Get-ChildItem -Path (Join-Path $projectRoot "dist") `
+                -Filter "catia_autoblade-$sourceVersion-*.whl"
+        )
+        if ($wheel.Count -ne 1) {
+            throw "Expected exactly one wheel for installed smoke testing."
+        }
+        Write-Host "==> Run non-editable installed wheel smoke test"
+        & (Join-Path $PSScriptRoot "smoke_installed_wheel.ps1") `
+            -WheelPath $wheel[0].FullName -UvExecutable $uvExecutable
+        if ($LASTEXITCODE -ne 0) {
+            throw "Installed wheel smoke test failed with exit code $LASTEXITCODE."
+        }
+    }
     $metadataArguments = @(
         "run", "--frozen", "python", "scripts/validate_distribution.py"
     )

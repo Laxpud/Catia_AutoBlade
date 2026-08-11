@@ -1,9 +1,18 @@
 from pathlib import Path
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
-class PathsConfig(BaseModel):
+CURRENT_CONFIG_SCHEMA_VERSION = "2.0.0"
+
+
+class StrictConfigModel(BaseModel):
+    """拒绝未声明字段，避免旧程序在保存时静默丢失新版配置。"""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+
+class PathsConfig(StrictConfigModel):
     """配置文件中保存的路径契约。"""
 
     input_dir: Path = Path("input")
@@ -13,16 +22,16 @@ class PathsConfig(BaseModel):
     section_params_dir: Path = Path("section_params")
 
 
-class DefaultsConfig(BaseModel):
+class DefaultsConfig(StrictConfigModel):
     """不由 CLI 显式指定时采用的运行默认值。"""
 
     author: str = ""
     output_name_template: str = "{blade}"
 
 
-class AppConfig(BaseModel):
+class AppConfig(StrictConfigModel):
     """持久化配置及其运行时解析结果共用的模型。"""
 
     paths: PathsConfig = Field(default_factory=PathsConfig)
     defaults: DefaultsConfig = Field(default_factory=DefaultsConfig)
-    version: str = "1.0.0"
+    version: str = CURRENT_CONFIG_SCHEMA_VERSION

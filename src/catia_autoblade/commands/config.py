@@ -17,6 +17,7 @@ def run_config_command(
     action: str,
     key: str | None,
     value: str | None,
+    apply: bool = False,
     *,
     config_manager: ConfigManager | None = None,
 ) -> None:
@@ -25,6 +26,8 @@ def run_config_command(
     if action == "show":
         config = manager.load()
         typer.echo("[INFO] Current configuration:")
+        typer.echo(f"  source: {manager.source_description}")
+        typer.echo(f"  version: {config.version}")
         typer.echo(f"  input_dir: {config.paths.input_dir}")
         typer.echo(f"  output_dir: {config.paths.output_dir}")
         typer.echo(f"  airfoil_dir: {config.paths.airfoil_dir}")
@@ -34,6 +37,32 @@ def run_config_command(
             "  output_name_template: "
             f"{config.defaults.output_name_template}"
         )
+        return
+
+    if action == "migrate":
+        plan = manager.plan_migration()
+        if plan is None:
+            typer.echo(
+                f"[INFO] Configuration already uses schema "
+                f"{manager.CURRENT_SCHEMA_VERSION}: {manager.config_file}"
+            )
+            return
+        typer.echo(
+            f"[INFO] Configuration migration preview: "
+            f"{plan.source_version} -> {plan.target_version}"
+        )
+        typer.echo(f"  file: {plan.config_file}")
+        for change in plan.changes:
+            typer.echo(
+                f"  {change.field}: {change.before!r} -> {change.after!r} "
+                f"({change.reason})"
+            )
+        if not apply:
+            typer.echo("[INFO] Preview only; rerun with --apply to write a backup and migrate.")
+            return
+        backup = manager.apply_migration(plan)
+        typer.echo(f"[SUCCESS] Configuration migrated: {manager.config_file}")
+        typer.echo(f"[INFO] Backup created: {backup}")
         return
 
     if action == "set":
@@ -57,4 +86,4 @@ def run_config_command(
         typer.echo("[INFO] Configuration reset to defaults.")
         return
 
-    raise ValueError("Configuration action must be one of: show, set, reset.")
+    raise ValueError("Configuration action must be one of: show, set, reset, migrate.")

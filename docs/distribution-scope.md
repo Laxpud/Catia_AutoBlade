@@ -16,12 +16,15 @@
 
 ## 分发路线
 
-首个可分发制品是内部预览 wheel，而不是公共 PyPI 包或独立 EXE。在 wheel 构建、工作区初始化和全新环境冒烟测试完成前，源码 checkout 仍是唯一受支持的获取方式。
+首个可分发制品是内部预览 wheel，而不是公共 PyPI 包或独立 EXE。仓库已经提供
+显式构建清单、外部工作区初始化、全新环境安装冒烟、真实 CATIA 候选验证和内部
+发布 manifest 工具；某个具体版本只有在干净标签提交上生成完整制品集后才成为
+受支持的内部交付物。没有标签、SHA-256 或验证记录的临时 wheel 仍属于开发产物。
 
 | 阶段 | 状态 | 制品与渠道 | 进入下一阶段的条件 |
 | --- | --- | --- | --- |
-| 源码预览 | 当前支持 | 从受控 Git 仓库 checkout，使用 `uv` 创建环境并执行命令 | 包元数据、构建清单和安装工作区契约固定 |
-| 内部 wheel | 首个可分发目标 | 向内部或明确授权的测试者直接提供版本化 wheel | 在全新环境安装成功，并完成自动化与真实 CATIA 冒烟 |
+| 源码预览 | 开发支持 | 从受控 Git 仓库 checkout，使用 `uv` 创建环境并执行命令 | 继续通过统一仓库检查 |
+| 内部 wheel | 受控发布流程已定义 | 整体提供 wheel、sdist、说明、SHA-256、manifest 和验证记录 | 每个标签候选均完成全新环境与真实 CATIA 回归 |
 | 发布候选 | 后续验证 | GitHub Release 附带 wheel、sdist、校验和与说明；TestPyPI 只验证索引安装链路 | 版本、回滚、凭据和重复构建流程稳定 |
 | 公共发布 | 尚未决定 | 公共 PyPI | 有明确外部用户、名称可用且支持成本可承担 |
 | 独立 EXE | 延后评估 | Windows one-folder 或安装包 | 已确认目标用户确实不能使用 Python/`uv` |
@@ -38,7 +41,7 @@ GitHub Release、TestPyPI 和公共 PyPI 在完成对应发布里程碑前都不
 | Python | CPython 3.14.x x64 | 开发与自动化环境于 2026-08-08 使用 Python `3.14.4` |
 | CATIA Python 桥接 | `pywin32` 311 | 锁文件和当前虚拟环境均使用 311；该版本提供 CPython 3.14 wheel |
 | CAD | CATIA P3 V5-6R2020 | 2026-08-07 完成 89 截面多翼型 Loft、`CloseSurface`、CATPart 保存和 STEP AP242 导出 |
-| CATIA 运行条件 | 可启动独占 `CATIA.Application` 的已注册 COM Automation 环境，并具有建模和导出所需许可证 | 同一真实回归结束后没有新增残留 `CNEXT` 进程 |
+| CATIA 运行条件 | 可启动独占 `CATIA.Application` 的已注册 COM Automation 环境，并具有建模和导出所需许可证 | 2026-08-11 候选 wheel 回归完成 CATPart 关键特征、STEP 固体 BREP 和零新增 `CNEXT` 检查 |
 
 `pyproject.toml` 已将 `requires-python` 固定为 `>=3.14,<3.15`，将 classifier 固定为 Windows 与 Python 3.14，并在 Windows 上要求 `pywin32==311`。Windows 10、Windows on ARM、Python 3.15 及更高版本、其他 `pywin32` 或 CATIA V5 版本只有在记录验证结果后才能加入支持范围。同属 Windows 11 x64 或 CPython 3.14.x x64 的其他 build 和补丁版本位于预览支持系列内，但不应被描述为已经单独完成验证。
 
@@ -50,7 +53,15 @@ GitHub Release、TestPyPI 和公共 PyPI 在完成对应发布里程碑前都不
 
 ## 分发物与外部依赖边界
 
-源码或未来 wheel 只负责交付 CATIA AutoBlade 的 Python 代码、包元数据和明确纳入清单的不可变模板资源。Python 包管理器可以根据包元数据安装 `pywin32`、Typer、Questionary、Pydantic 和 Tomlkit，但这些 Python 依赖不提供 CATIA 能力。
+源码或 wheel 只负责交付 CATIA AutoBlade 的 Python 代码、包元数据和
+`autoblade init` 明确纳入清单的不可变模板资源。Hatchling wheel 只包含
+`catia_autoblade` 包与这些资源；sdist 使用显式白名单交付重建 wheel 所需的
+源码、测试、锁文件、许可证、构建脚本、文档和版本化回归输入。产物校验会拒绝
+输出、缓存、虚拟环境、日志、CATPart、STEP、绝对开发机路径和未知归档根目录。
+
+Python 包管理器可以根据包元数据安装 `pywin32`、Typer、Questionary、Pydantic
+和 Tomlkit，但这些 Python 依赖不提供 CATIA 能力。工作区始终由用户在
+`site-packages` 外显式初始化；安装、升级或卸载包不会删除配置、输入和输出。
 
 以下内容必须由使用者或其组织另行安装、授权和维护，不属于本项目分发物：
 
@@ -79,3 +90,6 @@ GitHub Release、TestPyPI 和公共 PyPI 在完成对应发布里程碑前都不
 ## 支持范围变更规则
 
 新增支持组合时，应同时记录 Windows build、CPU 架构、Python、`pywin32`、CATIA 版本/配置、验证日期、代表输入、CATPart/STEP 结果和进程清理结果。仅通过单元测试、依赖解析或成功导入模块，不能把新的 CATIA 组合标记为已支持。
+
+安装和升级步骤见[安装、工作区与升级](installation.md)，标签、验证记录、制品集
+和回滚门槛见[内部 preview 发布与回滚](releasing.md)。

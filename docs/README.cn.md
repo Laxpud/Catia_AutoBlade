@@ -6,7 +6,7 @@ CATIA AutoBlade 是一个 Windows 命令行工具，用于根据翼型点云和�
 
 ## 当前状态
 
-项目目前处于可工作的早期原型阶段。单翼型流程已经在 CATIA P3 V5-6R2020 环境中成功运行。六列截面文件是需要显式绑定一个翼型的模板；包含 `airfoil` 列的截面文件则独立定义一个自包含多翼型模型。批处理为每个选中的截面定义创建一个任务，不执行隐式参数组合。
+项目目前处于可工作的早期原型阶段。单翼型流程已经在 CATIA P3 V5-6R2020 环境中成功运行。六列截面文件是需要显式绑定一个翼型的模板；包含 `airfoil` 列的截面文件则独立定义一个自包含多翼型模型。批处理为每个选中的截面定义创建一个任务，不执行隐式参数组合。独立的 `sweep` 流程只对用户显式选择的翼型和六列模板执行笛卡尔积。
 
 逐截面翼型解析、输入校验、唯一基准几何复用和截面选择已经实现。使用三种不同点数翼型的 89 截面样例已在 CATIA P3 V5-6R2020 中完成 Loft、实体封闭、CATPart 保存和 STEP AP242 导出。
 
@@ -22,7 +22,8 @@ CATIA AutoBlade 当前提供：
 - 尖后缘和钝后缘处理；
 - 带导引线的 Loft 曲面及封闭实体；
 - CATIA 原生格式和 STEP 导出；
-- 单模型和批处理 CLI 流程。
+- 单模型、非组合式批处理和显式参数扫描 CLI 流程；
+- 稳定 JSON 扫描清单以及不启动 CATIA 的 dry-run。
 
 它不是通用翼型编辑器、气动求解器或跨平台 CAD 后端。
 
@@ -52,6 +53,8 @@ uv pip install --python .venv\Scripts\python.exe .\catia_autoblade-0.2.0-py3-non
 .\.venv\Scripts\Activate.ps1
 autoblade init C:\Engineering\blade-workspace --with-examples
 ```
+
+`--with-examples` 会把已验证的 89 截面多翼型真实桨叶示例及其引用的三个翼型复制到外部工作区。
 
 当前不支持公共 PyPI 安装。维护者从源码 checkout 开发时使用：
 
@@ -100,6 +103,13 @@ uv run autoblade create --section section_params-multi-airfoil.csv
 
 ```powershell
 uv run autoblade batch --airfoil sc1095.csv
+```
+
+在不启动 CATIA 的前提下预览一个显式 2 × 2 笛卡尔积：
+
+```powershell
+uv run autoblade sweep --airfoil sc1095.csv --airfoil sd7032_sharp.csv `
+  --section section_params-1.csv --section section_params-2.csv --dry-run
 ```
 
 详细参数、交互行为、独立兼容入口、任务预览、覆盖规则和退出码见 [CLI 参考](cli.md)。

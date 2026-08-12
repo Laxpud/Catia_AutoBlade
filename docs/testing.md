@@ -37,7 +37,7 @@ scripts/validate_distribution.py`。这些命令是诊断入口，完整验收�
 | 层级 | 自动化范围 | 能发现的问题 | 不能替代的检查 |
 | --- | --- | --- | --- |
 | 单元层 | m/mm 单位、旋转、缩放、平移、零位移和输出命名 | 数学顺序、符号、单位边界和纯函数回归 | CATIA 特征是否可更新 |
-| Parser / Planner 层 | CSV schema、跨文件引用闭合、`BladeBuildJob` 列表和输出冲突 | 缺文件、非法字段、任务数量、隐式组合和 COM 前失败 | Loft 的真实几何质量 |
+| Parser / Planner 层 | CSV schema、跨文件引用闭合、`BladeBuildJob` 列表、显式扫描清单和输出冲突 | 缺文件、非法字段、任务数量、隐式组合、排序和 COM 前失败 | Loft 的真实几何质量 |
 | mock CATIA 层 | 唯一基准几何复用、调用顺序、异常清理和批任务隔离 | COM 编排、重复创建、资源泄漏路径 | CATIA 内核的样条、Loft、`CloseSurface` 结果 |
 | 真实 CATIA 层 | 版本化代表输入的人工冒烟与回归 | 几何内核、特征树、实体封闭、格式导出和真实进程残留 | 不进入默认 `pytest`，不能作为低成本提交前检查 |
 
@@ -50,6 +50,7 @@ pytest 专用预期失败数据不得放入 `input/` 扫描目录。当前小型
 | `test_input_validation.py` | 翼型和截面 CSV 解析、schema、数值、点序、行号与字段错误定位 |
 | `test_input_plan.py` | 单/多翼型模式、受限路径解析、唯一读取、后缘拓扑和 COM 前失败 |
 | `test_job_planner.py` | `BladeBuildJob` 输入闭合、稳定排序、无笛卡尔积、输出冲突和共享 Executor |
+| `test_sweep.py` | 显式 Cartesian product、十任务稳定顺序、自包含文件隔离、JSON 清单、dry-run 和输出冲突 |
 | `test_repository_inputs.py` | 版本化输入命名、89 行多翼型样例、引用完整性与唯一翼型顺序 |
 | `test_geometry_math.py` | m/mm 边界、截面缩放以及旋转→缩放→平移顺序 |
 | `test_multi_airfoil_geometry.py` | 唯一 CATIA 基准几何创建和逐截面引用编排 |

@@ -3,6 +3,7 @@ from collections.abc import Iterable
 import typer
 
 from ..core.jobs import BladeBuildJob
+from ..core.sweep import SweepPlan
 
 
 def show_job_preview(jobs: Iterable[BladeBuildJob]) -> list[BladeBuildJob]:
@@ -21,3 +22,34 @@ def show_job_preview(jobs: Iterable[BladeBuildJob]) -> list[BladeBuildJob]:
             names = ", ".join(path.name for path in existing)
             typer.echo(f"     overwrite={names}")
     return planned
+
+
+def show_sweep_preview(plan: SweepPlan) -> None:
+    """完整展示扫描选择、组合数量、任务、磁盘覆盖风险和稳定清单。"""
+    airfoils = ", ".join(plan.airfoil_filenames)
+    sections = ", ".join(plan.section_params_filenames)
+    typer.echo(
+        f"[INFO] Selected airfoils ({len(plan.airfoil_filenames)}): {airfoils}"
+    )
+    typer.echo(
+        "[INFO] Selected six-column section templates "
+        f"({len(plan.section_params_filenames)}): {sections}"
+    )
+    typer.echo(
+        "[INFO] Combination: cartesian "
+        f"({len(plan.airfoil_filenames)} x "
+        f"{len(plan.section_params_filenames)} = {len(plan.jobs)})"
+    )
+    show_job_preview(plan.jobs)
+
+    existing = [
+        path
+        for job in plan.jobs
+        for path in job.output_paths
+        if path.exists()
+    ]
+    typer.echo(f"[INFO] Existing output conflicts: {len(existing)}")
+    for path in existing:
+        typer.echo(f"  - {path}")
+    typer.echo("[INFO] Stable sweep manifest:")
+    typer.echo(plan.to_json())

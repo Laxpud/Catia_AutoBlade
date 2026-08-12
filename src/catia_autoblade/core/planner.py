@@ -106,8 +106,16 @@ def plan_batch_jobs(
             )
         )
 
-    # 同一批次的两个任务不得指向相同文件。磁盘上已有同名文件仍按既有
-    # 覆盖契约处理，并由交互预览显式标记。
+    _validate_output_conflicts(jobs, scope="Batch")
+    return jobs
+
+
+def _validate_output_conflicts(
+    jobs: Iterable[BladeBuildJob],
+    *,
+    scope: str,
+) -> None:
+    """拒绝同一计划内部的重复目标；磁盘覆盖风险由命令预览负责展示。"""
     targets: dict[Path, BladeBuildJob] = {}
     for job in jobs:
         for target in job.output_paths:
@@ -115,12 +123,11 @@ def plan_batch_jobs(
             if normalized in targets:
                 other = targets[normalized]
                 raise ValueError(
-                    "Batch output conflict between "
+                    f"{scope} output conflict between "
                     f"{other.section_params_filename!r} and "
                     f"{job.section_params_filename!r}: {normalized}"
                 )
             targets[normalized] = job
-    return jobs
 
 
 def _resolve_section_file(

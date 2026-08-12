@@ -44,11 +44,17 @@ _DIRECTORIES = (
 )
 _BASE_RESOURCES = {Path("config.toml"): Path("config.toml")}
 _EXAMPLE_RESOURCES = {
-    Path("input") / "airfoils" / "example-airfoil.csv": (
-        Path("airfoils") / "example-airfoil.csv"
+    Path("input") / "airfoils" / "airfoil1_sharp.csv": (
+        Path("airfoils") / "airfoil1_sharp.csv"
     ),
-    Path("input") / "section_params" / "section_params-example.csv": (
-        Path("section_params") / "section_params-example.csv"
+    Path("input") / "airfoils" / "airfoil2_sharp.csv": (
+        Path("airfoils") / "airfoil2_sharp.csv"
+    ),
+    Path("input") / "airfoils" / "airfoil3_sharp.csv": (
+        Path("airfoils") / "airfoil3_sharp.csv"
+    ),
+    Path("input") / "section_params" / "example-section-params.csv": (
+        Path("section_params") / "example-section-params.csv"
     ),
 }
 

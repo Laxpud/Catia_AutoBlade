@@ -28,16 +28,20 @@ def main() -> int:
     manager = ConfigManager(config_file)
     runtime = manager.load_runtime()
     airfoils, sections = get_available_files(config_manager=manager)
-    expected_airfoil = "example-airfoil.csv"
-    expected_section = "section_params-example.csv"
-    if airfoils != [expected_airfoil] or sections != [expected_section]:
+    expected_airfoils = [
+        "airfoil1_sharp.csv",
+        "airfoil2_sharp.csv",
+        "airfoil3_sharp.csv",
+    ]
+    expected_section = "example-section-params.csv"
+    if airfoils != expected_airfoils or sections != [expected_section]:
         raise RuntimeError(
             f"Initialized examples were not discovered: {airfoils}, {sections}"
         )
 
     calls = []
     result = run_create_command(
-        expected_airfoil,
+        None,
         expected_section,
         None,
         False,

@@ -6,7 +6,7 @@ CATIA AutoBlade is a Windows command-line tool that builds 3D blade models in CA
 
 ## Status
 
-The project is an early working prototype. The single-airfoil workflow has been exercised successfully with CATIA P3 V5-6R2020. A six-column section file is a template that requires one explicit airfoil; a section file with an `airfoil` column is one self-contained multi-airfoil model definition. Batch runs create one job per selected section definition and do not perform implicit parameter combinations.
+The project is an early working prototype. The single-airfoil workflow has been exercised successfully with CATIA P3 V5-6R2020. A six-column section file is a template that requires one explicit airfoil; a section file with an `airfoil` column is one self-contained multi-airfoil model definition. Batch runs create one job per selected section definition and do not perform implicit parameter combinations. The separate `sweep` workflow creates only the Cartesian product of explicitly selected airfoils and six-column templates.
 
 Per-section airfoil parsing, validation, deduplicated base-geometry creation, and section selection are implemented. The 89-section sample using three different point counts has completed Loft, solid closing, CATPart saving, and STEP AP242 export with CATIA P3 V5-6R2020.
 
@@ -22,7 +22,8 @@ CATIA AutoBlade currently provides:
 - sharp and blunt trailing-edge handling;
 - guided loft creation and surface closing;
 - native CATIA and STEP export;
-- single-model and batch CLI workflows.
+- single-model, non-combinatorial batch, and explicit parameter-sweep CLI workflows;
+- stable JSON sweep manifests and CATIA-free dry runs.
 
 It is not a general-purpose airfoil editor, aerodynamic solver, or platform-independent CAD backend.
 
@@ -52,6 +53,9 @@ uv pip install --python .venv\Scripts\python.exe .\catia_autoblade-0.2.0-py3-non
 .\.venv\Scripts\Activate.ps1
 autoblade init C:\Engineering\blade-workspace --with-examples
 ```
+
+`--with-examples` installs the validated 89-section multi-airfoil blade example
+and its three referenced airfoils into the external workspace.
 
 Public PyPI installation is not supported. Maintainers working from a source checkout use:
 
@@ -101,6 +105,13 @@ Build every discovered section definition; the explicit airfoil binds all six-co
 
 ```powershell
 uv run autoblade batch --airfoil sc1095.csv
+```
+
+Preview an explicit 2 × 2 Cartesian product without starting CATIA:
+
+```powershell
+uv run autoblade sweep --airfoil sc1095.csv --airfoil sd7032_sharp.csv `
+  --section section_params-1.csv --section section_params-2.csv --dry-run
 ```
 
 Detailed options, interactive behavior, standalone compatibility entry points, previews, overwrite rules, and exit codes are documented in the [CLI reference](https://github.com/Laxpud/catia-autoblade/blob/main/docs/cli.md).

@@ -4,6 +4,7 @@ import pytest
 
 from catia_autoblade.commands import initialize
 from catia_autoblade.config.manager import ConfigManager
+from catia_autoblade.core.input_plan import build_blade_input_plan
 from catia_autoblade.interactive import prompts
 
 
@@ -23,13 +24,31 @@ def test_init_creates_external_workspace_with_optional_examples(
     assert (target / "input" / "airfoils").is_dir()
     assert (target / "input" / "section_params").is_dir()
     assert (target / "output").is_dir()
-    assert (target / "input" / "airfoils" / "example-airfoil.csv").is_file()
-    assert (
+    expected_airfoils = [
+        "airfoil1_sharp.csv",
+        "airfoil2_sharp.csv",
+        "airfoil3_sharp.csv",
+    ]
+    assert sorted(
+        path.name for path in (target / "input" / "airfoils").iterdir()
+    ) == expected_airfoils
+    section_path = (
         target
         / "input"
         / "section_params"
-        / "section_params-example.csv"
-    ).is_file()
+        / "example-section-params.csv"
+    )
+    assert section_path.is_file()
+    input_plan = build_blade_input_plan(
+        section_path,
+        target / "input" / "airfoils",
+        None,
+    )
+    assert input_plan.mode == "multi"
+    assert len(input_plan.sections) == 89
+    assert [airfoil.filename for airfoil in input_plan.airfoils] == (
+        expected_airfoils
+    )
     assert ConfigManager(target / "config.toml").load().version == "2.0.0"
 
 

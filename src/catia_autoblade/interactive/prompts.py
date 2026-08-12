@@ -24,6 +24,19 @@ def select_airfoil(files: list[str]) -> str:
     )
 
 
+def select_airfoils(files: list[str]) -> list[str]:
+    """为 sweep 显式选择多个翼型；空选择按取消处理。"""
+    selected = _ask(
+        questionary.checkbox(
+            "Select airfoil files for Cartesian product:",
+            choices=files,
+        )
+    )
+    if not selected:
+        raise PromptCancelled("No airfoil files were selected.")
+    return selected
+
+
 def select_sections(files: list[str], multi: bool = False) -> list[str]:
     if multi:
         selected = _ask(
@@ -84,7 +97,7 @@ def select_main_action() -> str:
             choices=[
                 questionary.Choice("Create one blade", value="create"),
                 questionary.Choice("Run a batch", value="batch"),
-                questionary.Choice("Sweep (planned, not implemented)", value="sweep"),
+                questionary.Choice("Sweep explicit combinations", value="sweep"),
                 questionary.Choice("List inputs", value="list"),
                 questionary.Choice("Manage configuration", value="config"),
                 questionary.Choice("Exit", value="exit"),

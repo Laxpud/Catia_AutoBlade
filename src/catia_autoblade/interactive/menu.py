@@ -11,10 +11,6 @@ def run_main_menu(config_manager=None) -> None:
         action = select_main_action()
         if action == "exit":
             return
-        if action == "sweep":
-            typer.echo("[INFO] sweep is planned but not implemented yet.")
-            continue
-
         try:
             _run_menu_action(action, config_manager=config_manager)
         except PromptCancelled as error:
@@ -42,6 +38,17 @@ def _run_menu_action(action: str, *, config_manager=None) -> None:
         from ..commands.batch import run_batch_command
 
         run_batch_command(
+            None,
+            None,
+            None,
+            False,
+            True,
+            config_manager=config_manager,
+        )
+    elif action == "sweep":
+        from ..commands.sweep import run_sweep_command
+
+        run_sweep_command(
             None,
             None,
             None,

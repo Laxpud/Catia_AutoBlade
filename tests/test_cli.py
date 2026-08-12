@@ -10,6 +10,7 @@ from catia_autoblade.commands import create as create_commands
 from catia_autoblade.commands import doctor as doctor_commands
 from catia_autoblade.commands import initialize as initialize_commands
 from catia_autoblade.commands import list as list_commands
+from catia_autoblade.commands import sweep as sweep_commands
 from catia_autoblade.config.manager import ConfigManager
 from catia_autoblade.config.settings import AppConfig
 from catia_autoblade.interactive import menu
@@ -93,6 +94,45 @@ def test_batch_subcommand_parses_all_options(monkeypatch) -> None:
     assert result.exit_code == 0, result.output
     assert calls == [
         ("foil.csv", "sections.csv", "generated", True, True)
+    ]
+
+
+def test_sweep_subcommand_parses_repeatable_explicit_selections(
+    monkeypatch,
+) -> None:
+    calls = []
+
+    def fake_run(airfoils, sections, output, dry_run, interactive, **kwargs):
+        calls.append((airfoils, sections, output, dry_run, interactive))
+
+    monkeypatch.setattr(sweep_commands, "run_sweep_command", fake_run)
+    result = runner.invoke(
+        cli.app,
+        [
+            "sweep",
+            "--airfoil",
+            "foil-b.csv",
+            "--airfoil",
+            "foil-a.csv",
+            "--section",
+            "section_params-2.csv",
+            "--section",
+            "section_params-1.csv",
+            "--output",
+            "generated",
+            "--dry-run",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert calls == [
+        (
+            ["foil-b.csv", "foil-a.csv"],
+            ["section_params-2.csv", "section_params-1.csv"],
+            "generated",
+            True,
+            False,
+        )
     ]
 
 

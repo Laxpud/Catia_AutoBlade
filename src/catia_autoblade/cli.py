@@ -176,6 +176,50 @@ def batch(
     )
 
 
+@app.command()
+def sweep(
+    ctx: typer.Context,
+    airfoils: Annotated[
+        list[str],
+        typer.Option(
+            "--airfoil",
+            "-a",
+            help="Explicit airfoil CSV basename; repeat for multiple values.",
+        ),
+    ] = [],
+    sections: Annotated[
+        list[str],
+        typer.Option(
+            "--section",
+            "-s",
+            help="Explicit six-column template; repeat for multiple values.",
+        ),
+    ] = [],
+    output: Annotated[str | None, typer.Option("--output", "-o")] = None,
+    dry_run: Annotated[
+        bool,
+        typer.Option(
+            "--dry-run",
+            help="Print the complete stable manifest without starting CATIA.",
+        ),
+    ] = False,
+    interactive: Annotated[bool, typer.Option("--interactive", "-i")] = False,
+) -> None:
+    """Build an explicit Cartesian product of airfoils and section templates."""
+    from .commands.sweep import run_sweep_command
+
+    _run_cli(
+        lambda: run_sweep_command(
+            airfoils,
+            sections,
+            output,
+            dry_run,
+            interactive,
+            config_manager=_get_config_manager(ctx),
+        )
+    )
+
+
 @app.command("list")
 def list_inputs(
     ctx: typer.Context,

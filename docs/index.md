@@ -5,7 +5,7 @@
 ## 当前文档
 
 - [架构说明](architecture.md)：模块边界、CATIA 建模流程、资源生命周期和当前限制。
-- [设计原则](design-principles.md)：`create`、`batch`、未来 `sweep` 的职责，模型输入模式和任务边界。
+- [设计原则](design-principles.md)：`create`、`batch`、`sweep` 的职责，模型输入模式和任务边界。
 - [CLI 参考](cli.md)：命令参数、交互模式、任务预览、覆盖规则、退出码和示例。
 - [输入数据格式](input-formats.md)：坐标系、CSV schema、单位、点序以及多翼型扩展状态。
 - [展向多翼型设计](multi-airfoil-design.md)：输入路径、文件命名、逐截面引用、兼容模式、批处理和 Loft 对齐策略。

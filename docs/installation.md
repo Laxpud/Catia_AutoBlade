@@ -36,6 +36,10 @@ autoblade doctor
 autoblade list
 ```
 
+`--with-examples` 会安装 `example-section-params.csv` 以及
+`airfoil1_sharp.csv`、`airfoil2_sharp.csv`、`airfoil3_sharp.csv`。这四个文件
+共同构成已验证的 89 截面多翼型真实桨叶示例。
+
 `init` 会先展示 `config.toml`、三个目录和可选示例的完整计划。已存在的受管理
 文件默认不会覆盖；脚本可显式使用 `--force`，人工会话可使用 `--interactive`
 逐次确认。目标中的其他文件永远不会被删除。

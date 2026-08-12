@@ -54,7 +54,7 @@ GitHub Release、TestPyPI 和公共 PyPI 在完成对应发布里程碑前都不
 ## 分发物与外部依赖边界
 
 源码或 wheel 只负责交付 CATIA AutoBlade 的 Python 代码、包元数据和
-`autoblade init` 明确纳入清单的不可变模板资源。Hatchling wheel 只包含
+`autoblade init` 明确纳入清单的不可变示例资源。Hatchling wheel 只包含
 `catia_autoblade` 包与这些资源；sdist 使用显式白名单交付重建 wheel 所需的
 源码、测试、锁文件、许可证、构建脚本、文档和版本化回归输入。产物校验会拒绝
 输出、缓存、虚拟环境、日志、CATPart、STEP、绝对开发机路径和未知归档根目录。

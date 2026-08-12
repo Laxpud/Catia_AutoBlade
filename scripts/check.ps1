@@ -9,7 +9,7 @@ $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$testTemp = Join-Path $projectRoot ".test-tmp-check"
+$testTemp = Join-Path $projectRoot ".test-tmp-check-$PID"
 if ($CacheDir) {
     $env:UV_CACHE_DIR = [System.IO.Path]::GetFullPath(
         (Join-Path $projectRoot $CacheDir)
@@ -52,7 +52,8 @@ try {
         )
     }
 
-    # 2. pytest 临时数据固定在项目可写目录，避免受系统临时目录权限影响。
+    # 2. pytest 临时数据固定在项目可写目录，并按检查进程隔离。受管 Windows
+    # 环境可能给子进程创建的目录附加专用 ACL，复用固定目录会导致下次清理失败。
     Invoke-UvStep -Name "Run automated tests" -Arguments @(
         "run", "--frozen", "--extra", "dev", "pytest", "-q",
         "--basetemp=$testTemp", "-p", "no:cacheprovider"

@@ -10,7 +10,7 @@
 uv run autoblade
 ```
 
-程序打开顶层菜单，可进入单模型创建、批处理、输入列表和配置管理。菜单会显示未来 `sweep`，但明确标记为尚未实现；一次操作结束或取消后返回顶层菜单。正常退出返回 0，`Ctrl+C` 返回 130。
+程序打开顶层菜单，可进入单模型创建、批处理、显式参数扫描、输入列表和配置管理；一次操作结束或取消后返回顶层菜单。正常退出返回 0，`Ctrl+C` 返回 130。
 
 标准输入或输出不是 TTY 时，无参数调用不会等待输入，而是显示帮助并返回 2。自动化脚本应始终使用显式子命令。
 
@@ -39,8 +39,9 @@ autoblade init TARGET [--with-examples] [--force] [--interactive]
 
 `TARGET` 必须显式给出。命令先展示所有受影响路径，然后在目标中创建
 `config.toml`、`input/airfoils/`、`input/section_params/` 和 `output/`；
-`--with-examples` 复制随 wheel 分发的最小只读模板。目标不能位于
-`site-packages` 内。
+`--with-examples` 复制随 wheel 分发的 `example-section-params.csv` 及其引用的
+三个翼型。该示例是已经完成真实 CATIA 回归的 89 截面多翼型桨叶，而不是人工
+构造的最小两截面模板。目标不能位于 `site-packages` 内。
 
 已存在的受管理文件默认导致退出码 1，且执行前不创建任何计划项。`--force` 允许
 脚本替换这些明确列出的文件；`--interactive` 允许人工确认。两种方式都不会删除
@@ -122,6 +123,37 @@ uv run autoblade batch --interactive
 
 如果一个任务失败，后续任务仍会执行；最终汇总保留每项结果，并以退出码 1 表示部分失败。单翼型输出按翼型 stem 建子目录，自包含输出按截面文件 stem 建子目录。
 
+## `sweep`
+
+```text
+autoblade sweep --airfoil NAME [--airfoil NAME ...]
+                --section NAME [--section NAME ...]
+                [--output DIR] [--dry-run] [--interactive]
+```
+
+`sweep` 只对显式选择的翼型和六列截面模板执行 Cartesian product。两个维度分别按 basename 字典序去重，任务采用 airfoil-major 稳定顺序；例如 2 个翼型与 5 个模板精确生成 10 个任务。目录中额外文件不会增加任务，含 `airfoil` 列的自包含定义若被选中会在展开前报错。
+
+| 参数 | 默认行为 |
+| --- | --- |
+| `--airfoil`, `-a` | 至少显式提供一个；重复选项选择多个翼型 |
+| `--section`, `-s` | 至少显式提供一个；重复选项选择多个六列模板 |
+| `--output`, `-o` | 使用配置输出目录作为扫描根目录，每个翼型使用独立 stem 子目录 |
+| `--dry-run` | 完整显示稳定 JSON 清单并在 Executor 前返回，不加载或启动 CATIA |
+| `--interactive`, `-i` | 交互多选翼型和六列模板，并在非 dry-run 预览后确认执行 |
+
+脚本可先执行 dry-run 审核完整计划：
+
+```powershell
+uv run autoblade sweep `
+  --airfoil sc1095.csv --airfoil sd7032_sharp.csv `
+  --section section_params-1.csv --section section_params-2.csv `
+  --dry-run
+```
+
+预览先显示两个选择维度、组合数量、全部任务和现有输出冲突，再输出 schema version 1 的 JSON 清单。清单固定记录 `cartesian` 组合类型、选择范围、有序 `sweep-NNNN` 任务 ID、输入 basename、输出目录、输出名称及 `.CATPart`/`.stp` 路径；同一输入和输出根目录可得到逐字稳定的序列化结果。
+
+首版不支持 `zip`、目录自动全选、全局缩放、桨距或尖部形状等额外设计变量。需要逐行选择不同翼型时，应使用含 `airfoil` 列的自包含文件和 `create`/`batch`，不应加入 `sweep`。
+
 ## `list`
 
 ```powershell
@@ -159,6 +191,8 @@ Planner 完成后、CATIA 启动前，命令输出：
 - 截面文件和输出目标；
 - 已存在且将被覆盖的 `.CATPart` 或 `.stp` 文件名。
 
+`sweep` 还会显示两个显式选择集合、Cartesian product 数量、现有输出冲突总数和完整稳定清单。计划内部若有两个任务指向同一路径，Planner 会在执行前拒绝整个计划；磁盘上已有目标则保留既有覆盖语义并在预览中逐项列出。
+
 显式非交互命令按既有契约直接执行并覆盖同名成功输出。交互模式默认不确认执行，用户确认后才会创建 CATIA 会话。
 
 ## 独立兼容入口
@@ -184,7 +218,3 @@ uv run autoblade-batch --version
 | 130 | 用户使用 `Ctrl+C` 中断 |
 
 普通信息、任务预览和成功汇总写入标准输出；统一的 `[ERROR]` 错误写入标准错误。领域异常会保留文件路径、CSV 行号和字段信息，命令处理层不会打印错误后正常返回。
-
-## 尚未实现的 `sweep`
-
-`sweep` 将用于显式组合多个翼型与多个六列模板，并生成 N × M × … 个任务。当前没有 `autoblade sweep` 子命令；`batch` 不临时代行参数扫描。规划与验收标准见根目录 [TODO](../TODO.md)。

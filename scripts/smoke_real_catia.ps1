@@ -73,7 +73,7 @@ try {
     }
 
     $airfoilDir = Join-Path $workspaceDir "input\airfoils"
-    $sectionDir = Join-Path $workspaceDir "input\section_params"
+    $sectionDir = Join-Path $workspaceDir "input\blade_sections"
     foreach ($name in @(
         "airfoil1_sharp.csv",
         "airfoil2_sharp.csv",
@@ -84,13 +84,13 @@ try {
     }
     Copy-Item -LiteralPath (
         Join-Path $projectRoot `
-            "input\section_params\section_params-multi-airfoil.csv"
+            "input\blade_sections\blade_sections-multi-airfoil.csv"
     ) -Destination $sectionDir
 
     $beforeIds = Get-CnextIds
     $workspaceConfig = Join-Path $workspaceDir "config.toml"
     & $autobladeExe --config $workspaceConfig create `
-        --section "section_params-multi-airfoil.csv" --output $artifactRoot
+        --section "blade_sections-multi-airfoil.csv" --output $artifactRoot
     if ($LASTEXITCODE -ne 0) {
         throw "Candidate wheel failed the real CATIA build."
     }
@@ -135,7 +135,7 @@ try {
             python = (& $pythonExe --version).Trim()
             pywin32 = "311"
             catia = $CatiaVersion
-            input_model = "section_params-multi-airfoil.csv"
+            input_model = "blade_sections-multi-airfoil.csv"
             catpart_result = "pass: $catpart"
             step_result = "pass: closed solid BREP at $step"
             feature_tree = (

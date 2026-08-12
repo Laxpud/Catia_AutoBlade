@@ -33,20 +33,20 @@ def run_batch_command(
     """规划多个闭合模型任务；目录内容不会扩展为翼型笛卡尔积。"""
     manager = config_manager or ConfigManager()
     config = manager.load_runtime()
-    airfoil_files, section_params_files = get_available_files(
+    airfoil_files, blade_sections_files = get_available_files(
         airfoil_dir=config.paths.airfoil_dir,
-        section_params_dir=config.paths.section_params_dir,
+        blade_sections_dir=config.paths.blade_sections_dir,
     )
 
     if list_files:
         _show_available_files(
             airfoil_files,
-            section_params_files,
-            config.paths.section_params_dir,
+            blade_sections_files,
+            config.paths.blade_sections_dir,
         )
         return []
-    if not section_params_files:
-        raise ValueError("No section parameter files were found.")
+    if not blade_sections_files:
+        raise ValueError("No blade section definition files were found.")
 
     if interactive:
         from ..interactive.prompts import (
@@ -59,7 +59,7 @@ def run_batch_command(
         selected_sections = (
             [section]
             if section is not None
-            else select_sections(section_params_files, multi=True)
+            else select_sections(blade_sections_files, multi=True)
         )
         output_default = (
             manager.resolve_cli_path(output)
@@ -70,7 +70,7 @@ def run_batch_command(
             confirm_output_dir(str(output_default))
         )
     else:
-        selected_sections = [section] if section else section_params_files
+        selected_sections = [section] if section else blade_sections_files
         output_dir = (
             manager.resolve_cli_path(output)
             if output
@@ -78,15 +78,15 @@ def run_batch_command(
         )
 
     missing_sections = [
-        name for name in selected_sections if name not in section_params_files
+        name for name in selected_sections if name not in blade_sections_files
     ]
     if missing_sections:
         raise ValueError(
-            f"Section parameter file not found: {missing_sections[0]!r}."
+            f"Blade section definition file not found: {missing_sections[0]!r}."
         )
 
     modes = [
-        inspect_section_mode(config.paths.section_params_dir / section_name)
+        inspect_section_mode(config.paths.blade_sections_dir / section_name)
         for section_name in selected_sections
     ]
     has_single_sections = "single" in modes
@@ -109,7 +109,7 @@ def run_batch_command(
         selected_sections,
         output_dir,
         airfoil_dir=config.paths.airfoil_dir,
-        section_params_dir=config.paths.section_params_dir,
+        blade_sections_dir=config.paths.blade_sections_dir,
         output_name_template=config.defaults.output_name_template,
         author=config.defaults.author,
     )
@@ -129,7 +129,7 @@ def run_batch_command(
         if result.status == "failed":
             typer.echo(
                 "[ERROR] Failed to create blade for "
-                f"{result.job.section_params_filename}: {result.error}",
+                f"{result.job.blade_sections_filename}: {result.error}",
                 err=True,
             )
     typer.echo(
@@ -142,14 +142,14 @@ def run_batch_command(
 
 def _show_available_files(
     airfoil_files: list[str],
-    section_params_files: list[str],
-    section_params_dir,
+    blade_sections_files: list[str],
+    blade_sections_dir,
 ) -> None:
     typer.echo("[INFO] Available airfoil files:")
     for filename in airfoil_files:
         typer.echo(f"  - {filename}")
-    typer.echo("\n[INFO] Available section parameter files:")
-    for filename in section_params_files:
-        mode = inspect_section_mode(section_params_dir / filename)
+    typer.echo("\n[INFO] Available blade section definition files:")
+    for filename in blade_sections_files:
+        mode = inspect_section_mode(blade_sections_dir / filename)
         label = "self-contained" if mode == "multi" else "six-column template"
         typer.echo(f"  - {filename} ({label})")

@@ -14,7 +14,7 @@ def show_job_preview(jobs: Iterable[BladeBuildJob]) -> list[BladeBuildJob]:
         airfoil = job.airfoil_filename or "per-section references"
         typer.echo(
             f"  {index}. mode={job.mode}, airfoil={airfoil}, "
-            f"section={job.section_params_filename}"
+            f"section={job.blade_sections_filename}"
         )
         typer.echo(f"     output={job.output_dir / job.output_name}")
         existing = [path for path in job.output_paths if path.exists()]
@@ -27,18 +27,18 @@ def show_job_preview(jobs: Iterable[BladeBuildJob]) -> list[BladeBuildJob]:
 def show_sweep_preview(plan: SweepPlan) -> None:
     """完整展示扫描选择、组合数量、任务、磁盘覆盖风险和稳定清单。"""
     airfoils = ", ".join(plan.airfoil_filenames)
-    sections = ", ".join(plan.section_params_filenames)
+    sections = ", ".join(plan.blade_sections_filenames)
     typer.echo(
         f"[INFO] Selected airfoils ({len(plan.airfoil_filenames)}): {airfoils}"
     )
     typer.echo(
         "[INFO] Selected six-column section templates "
-        f"({len(plan.section_params_filenames)}): {sections}"
+        f"({len(plan.blade_sections_filenames)}): {sections}"
     )
     typer.echo(
         "[INFO] Combination: cartesian "
         f"({len(plan.airfoil_filenames)} x "
-        f"{len(plan.section_params_filenames)} = {len(plan.jobs)})"
+        f"{len(plan.blade_sections_filenames)} = {len(plan.jobs)})"
     )
     show_job_preview(plan.jobs)
 

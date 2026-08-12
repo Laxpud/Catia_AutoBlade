@@ -64,12 +64,12 @@ def test_doctor_checks_configured_directories_without_starting_catia(
     (input_dir / "sections").mkdir()
     config_file = tmp_path / "config.toml"
     config_file.write_text(
-        """version = "2.0.0"
+        """version = "3.0.0"
 [paths]
 input_dir = "input"
 output_dir = "output"
 airfoil_dir = "airfoils"
-section_params_dir = "sections"
+blade_sections_dir = "sections"
 [defaults]
 author = ""
 output_name_template = "{blade}"
@@ -98,6 +98,6 @@ output_name_template = "{blade}"
     by_name = {check.name: check for check in checks}
     assert by_name["config"].status == "PASS"
     assert by_name["airfoil_dir"].status == "PASS"
-    assert by_name["section_params_dir"].status == "PASS"
+    assert by_name["blade_sections_dir"].status == "PASS"
     assert by_name["output_writable"].status == "PASS"
     assert by_name["support_baseline"].status == "WARN"

@@ -21,7 +21,7 @@
 | `paths.input_dir` | `config.toml` 所在目录 | 输入树根目录 |
 | `paths.output_dir` | `config.toml` 所在目录 | 未传 `--output` 时的输出根目录 |
 | `paths.airfoil_dir` | 解析后的 `input_dir` | 翼型 CSV 目录 |
-| `paths.section_params_dir` | 解析后的 `input_dir` | 截面参数 CSV 目录 |
+| `paths.blade_sections_dir` | 解析后的 `input_dir` | 桨叶截面定义 CSV 目录 |
 | CLI `--output` | 启动命令时的工作目录 | 显式值优先于 `paths.output_dir` |
 
 任何绝对路径都会保持为绝对路径，不再与上述基准拼接。专用输入目录设计为 `input_dir` 的相对子目录，因此可以只修改 `input_dir` 来整体迁移输入树；如果输入文件分散在不同位置，也可以分别为两个专用目录配置绝对路径。
@@ -33,7 +33,7 @@
 input_dir = "input"
 output_dir = "output"
 airfoil_dir = "airfoils"
-section_params_dir = "section_params"
+blade_sections_dir = "blade_sections"
 ```
 
 ## CLI 覆盖优先级
@@ -48,19 +48,20 @@ section_params_dir = "section_params"
 ## 配置 schema 与兼容性
 
 `AppConfig.version` 是持久化配置格式版本，不是包的 `__version__`。当前 schema
-为 `2.0.0`，它固定专用输入目录相对 `paths.input_dir` 解析的语义。
+为 `3.0.0`：它把用户可见集合从 `section_params` 统一命名为 `blade_sections`，
+并延续专用输入目录相对 `paths.input_dir` 解析的语义。
 
-历史 `1.0.0` 配置曾把 `paths.airfoil_dir` 写为 `input\airfoils`，同时运行时又
-以 `input_dir` 拼接，升级后可能得到错误的 `input/input/airfoils`。当前程序会：
+历史 `1.0.0` 配置曾把专用目录写成包含 `input` 的路径；`2.0.0` 修复了路径
+解析，但仍使用 `paths.section_params_dir`。当前程序会：
 
-- 在内存中把已知 `1.0.0` 或无版本配置转换为当前模型，保证普通读取和路径结果
-  稳定，但不改写原文件；
+- 在内存中把已知 `1.0.0`、`2.0.0` 或无版本配置转换为当前模型，但不改写原文件；
 - 对旧 schema 发出迁移提示，并阻止 `config set`、`config reset` 顺便升级；
 - 拒绝未知字段，避免旧程序忽略新版数据后在保存时将其删除；
-- 对已登记的废弃字段报告明确替代项；当前没有仍可静默接受的废弃字段；
-- 对高于 `2.0.0` 的配置安全失败并要求升级程序；对未支持的旧版本同样失败。
+- 当前 schema 若仍写入 `paths.section_params_dir`，会明确提示改用
+  `paths.blade_sections_dir`；
+- 对高于 `3.0.0` 的配置安全失败并要求升级程序；对未支持的旧版本同样失败。
 
-只有真实存在的 `1.0.0 → 2.0.0` 迁移被实现，没有通用插件式迁移框架。
+迁移器只实现真实存在的 `1.0.0/2.0.0 → 3.0.0` 路径，没有通用插件式迁移框架。
 
 ## 输出命名模板
 
@@ -69,8 +70,8 @@ section_params_dir = "section_params"
 | 字段 | 值 |
 | --- | --- |
 | `{airfoil}` | 翼型文件名去除 `.csv` 后的 stem |
-| `{idx}` | `section_params-` 后的标识；没有该前缀时使用截面参数文件 stem |
-| `{section}` | 截面参数文件名去除 `.csv` 后的完整 stem |
+| `{idx}` | `blade_sections-` 后的标识；没有该前缀时使用桨叶截面定义文件 stem |
+| `{section}` | 桨叶截面定义文件名去除 `.csv` 后的完整 stem |
 | `{author}` | `defaults.author` |
 | `{blade}` | 模式无关的完整叶片名；单翼型为 `<airfoil>_blade-<idx>`，多翼型为 `blade-<idx>` |
 
@@ -90,6 +91,8 @@ uv run autoblade config migrate --apply
 `config show` 显示来源、schema 和持久化值，而不是解析后的绝对路径，便于确认
 配置文件是否仍可跨目录移动。`config migrate` 默认只预览字段级变化；`--apply`
 先验证文件自预览后没有变化，创建 `config.toml.v<旧版本>.bak[.N]`，再通过同目录
-临时文件原子替换。迁移不会读取、移动或覆盖翼型、截面参数、CATPart 或 STEP。
+临时文件原子替换。旧默认值 `section_params` 会改为 `blade_sections`，但迁移不会
+读取、移动或覆盖翼型、桨叶截面定义、CATPart 或 STEP；旧工作区还需按
+[命名迁移记录](blade-sections-migration.md)显式改名目录和标准 CSV basename。
 
 完整的安装、升级、卸载和回滚流程见[安装、工作区与升级](installation.md)。

@@ -10,10 +10,25 @@
 - 唯一包版本源是 `src/catia_autoblade/__init__.py`。
 - Git 标签使用 `v<版本>`；同一个版本号不得重新构建不同内容并继续分发。
 - Release Notes、源码版本、标签、wheel、sdist 和发布 manifest 必须一致。
+- 内置翼型目录不建立第二版本源；其内容随包版本发布，清单中的
+  `schema_version` 只表示清单结构。
+
+## 翼型目录变更
+
+增加、修改或删除 `resources/airfoil_library` 中的翼型时，必须在同一改动中：
+
+1. 更新清单的稳定 ID、来源、许可证或直接授权、修改说明、点数和 SHA-256；
+2. 完成 CSV 数据校验，并保证包中没有未列入清单的 CSV；
+3. 更新 `docs/release-notes/unreleased.md`，发布时再并入下一个版本的正式说明；
+4. 更新 wheel 内容校验和安装冒烟；涉及坐标、点序或拓扑时补做真实 CATIA 回归。
+
+来源或授权不清楚的数据必须留在 wheel 外。不能只更新 CSV 而沿用旧摘要，也不能
+把 `schema_version` 递增当作数据内容版本或包版本。
 
 ## 发布前证据
 
-1. 在最终提交上确认工作区干净，更新 `docs/release-notes/v<版本>.md`。
+1. 在最终提交上确认工作区干净，把未发布说明整理进
+   `docs/release-notes/v<版本>.md`，并清空已发布条目。
 2. 创建唯一匹配标签后运行完整检查：
 
    ```powershell

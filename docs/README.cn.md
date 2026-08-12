@@ -55,6 +55,7 @@ autoblade init C:\Engineering\blade-workspace --with-examples
 ```
 
 `--with-examples` 会把已验证的 89 截面多翼型真实桨叶示例及其引用的三个翼型复制到外部工作区。
+使用 `--with-airfoil-library` 可以只复制完整的已审计内置翼型目录及其清单，不复制桨叶截面示例。当前目录包含三个已获得作者直接再分发授权的 Hannnk 翼型；详见[数据审计](example-data-audit.md)。
 
 当前不支持公共 PyPI 安装。维护者从源码 checkout 开发时使用：
 
@@ -88,13 +89,13 @@ uv run autoblade doctor
 创建一个叶片：
 
 ```powershell
-uv run autoblade create --airfoil sc1095.csv --section section_params-1.csv
+uv run autoblade create --airfoil sc1095.csv --section blade_sections-1.csv
 ```
 
 不传后备 `--airfoil`，直接创建仓库中的多翼型样例：
 
 ```powershell
-uv run autoblade create --section section_params-multi-airfoil.csv
+uv run autoblade create --section blade_sections-multi-airfoil.csv
 ```
 
 建模失败时可使用 `--keep-failed-part` 保留 `*_failed.CATPart` 以便排查。
@@ -109,14 +110,14 @@ uv run autoblade batch --airfoil sc1095.csv
 
 ```powershell
 uv run autoblade sweep --airfoil sc1095.csv --airfoil sd7032_sharp.csv `
-  --section section_params-1.csv --section section_params-2.csv --dry-run
+  --section blade_sections-1.csv --section blade_sections-2.csv --dry-run
 ```
 
 详细参数、交互行为、独立兼容入口、任务预览、覆盖规则和退出码见 [CLI 参考](cli.md)。
 
 ## 输入概览
 
-默认情况下，翼型 CSV 放在 `input/airfoils/`，截面参数 CSV 放在 `input/section_params/`；两个位置均可配置。坐标、单位、点序、必需字段和当前校验限制见[输入数据格式](input-formats.md)。
+默认情况下，翼型 CSV 放在 `input/airfoils/`，桨叶截面定义 CSV 放在 `input/blade_sections/`；两个位置均可配置。坐标、单位、点序、必需字段和当前校验限制见[输入数据格式](input-formats.md)。
 
 ## 文档
 

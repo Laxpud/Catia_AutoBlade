@@ -1,10 +1,10 @@
-version = "2.0.0"
+version = "3.0.0"
 
 [paths]
 input_dir = "input"
 output_dir = "output"
 airfoil_dir = "airfoils"
-section_params_dir = "section_params"
+blade_sections_dir = "blade_sections"
 
 [defaults]
 author = ""

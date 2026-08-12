@@ -158,7 +158,7 @@ def _patch_successful_geometry(monkeypatch: pytest.MonkeyPatch) -> None:
     """把几何操作替换为稳定返回值，仅保留生命周期与真实保存流程。"""
     input_plan = BladeInputPlan(
         mode="single",
-        section_params_path=Path("section_params-1.csv"),
+        blade_sections_path=Path("blade_sections-1.csv"),
         sections=(
             {"idx": 1, "airfoil_filename": "foil.csv"},
             {"idx": 2, "airfoil_filename": "foil.csv"},
@@ -251,11 +251,11 @@ def test_create_blade_cleans_up_after_each_failure_stage(
     with pytest.raises(Exception, match=f"{failure_stage} failed"):
         create_module.create_single_blade(
             "foil.csv",
-            "section_params-1.csv",
+            "blade_sections-1.csv",
             tmp_path / "output",
             "blade",
             airfoil_dir=tmp_path / "airfoils",
-            section_params_dir=tmp_path / "sections",
+            blade_sections_dir=tmp_path / "sections",
             session_factory=harness.session_factory,
         )
 
@@ -277,11 +277,11 @@ def test_model_failure_can_save_catia_snapshot_before_cleanup(
     with pytest.raises(RuntimeError, match="model failed"):
         create_module.create_single_blade(
             "foil.csv",
-            "section_params-1.csv",
+            "blade_sections-1.csv",
             tmp_path / "output",
             "blade",
             airfoil_dir=tmp_path / "airfoils",
-            section_params_dir=tmp_path / "sections",
+            blade_sections_dir=tmp_path / "sections",
             keep_failed_part=True,
             session_factory=harness.session_factory,
         )
@@ -313,11 +313,11 @@ def test_failed_snapshot_uses_suffix_instead_of_overwriting(
     with pytest.raises(RuntimeError, match="model failed"):
         create_module.create_single_blade(
             "foil.csv",
-            "section_params-1.csv",
+            "blade_sections-1.csv",
             output_dir,
             "blade",
             airfoil_dir=tmp_path / "airfoils",
-            section_params_dir=tmp_path / "sections",
+            blade_sections_dir=tmp_path / "sections",
             keep_failed_part=True,
             session_factory=harness.session_factory,
         )
@@ -342,11 +342,11 @@ def test_failed_snapshot_error_does_not_mask_model_error(
     with pytest.raises(RuntimeError, match="model failed") as raised:
         create_module.create_single_blade(
             "foil.csv",
-            "section_params-1.csv",
+            "blade_sections-1.csv",
             tmp_path / "output",
             "blade",
             airfoil_dir=tmp_path / "airfoils",
-            section_params_dir=tmp_path / "sections",
+            blade_sections_dir=tmp_path / "sections",
             keep_failed_part=True,
             session_factory=harness.session_factory,
         )
@@ -405,7 +405,7 @@ def test_batch_failure_closes_every_owned_application(
         harness = LifecycleHarness()
         harnesses.append(harness)
         with harness.session_factory():
-            if section_file == "section_params-bad.csv":
+            if section_file == "blade_sections-bad.csv":
                 raise RuntimeError("batch item failed")
 
     monkeypatch.setattr(batch_module, "create_single_blade", fake_create)
@@ -422,17 +422,17 @@ def test_batch_failure_closes_every_owned_application(
         SHARP_AIRFOIL,
         encoding="utf-8",
     )
-    for filename in ("section_params-bad.csv", "section_params-good.csv"):
+    for filename in ("blade_sections-bad.csv", "blade_sections-good.csv"):
         (section_dir / filename).write_text(
             VALID_SECTIONS,
             encoding="utf-8",
         )
     results = batch_module.batch_create_blades(
         ["foil.csv"],
-        ["section_params-bad.csv", "section_params-good.csv"],
+        ["blade_sections-bad.csv", "blade_sections-good.csv"],
         tmp_path / "output",
         airfoil_dir=airfoil_dir,
-        section_params_dir=section_dir,
+        blade_sections_dir=section_dir,
         output_name_template="{airfoil}_{idx}",
         author="",
     )

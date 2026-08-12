@@ -14,7 +14,7 @@ def test_multi_airfoil_geometry_is_created_once_and_selected_by_section(
     """唯一翼型只建一次，截面序列通过文件名引用对应基准曲线。"""
     plan = BladeInputPlan(
         mode="multi",
-        section_params_path=tmp_path / "sections.csv",
+        blade_sections_path=tmp_path / "sections.csv",
         sections=(
             {"idx": 1, "airfoil_filename": "foil_a.csv"},
             {"idx": 2, "airfoil_filename": "foil_a.csv"},

@@ -3,7 +3,7 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field
 
 
-CURRENT_CONFIG_SCHEMA_VERSION = "2.0.0"
+CURRENT_CONFIG_SCHEMA_VERSION = "3.0.0"
 
 
 class StrictConfigModel(BaseModel):
@@ -19,7 +19,7 @@ class PathsConfig(StrictConfigModel):
     output_dir: Path = Path("output")
     # 这两个目录的相对值以 input_dir 为基准，便于整体迁移输入树。
     airfoil_dir: Path = Path("airfoils")
-    section_params_dir: Path = Path("section_params")
+    blade_sections_dir: Path = Path("blade_sections")
 
 
 class DefaultsConfig(StrictConfigModel):

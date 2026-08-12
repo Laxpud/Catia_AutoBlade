@@ -36,11 +36,21 @@ autoblade doctor
 autoblade list
 ```
 
-`--with-examples` 会安装 `example-section-params.csv` 以及
+`--with-examples` 会安装 `example-blade-sections.csv` 以及
 `airfoil1_sharp.csv`、`airfoil2_sharp.csv`、`airfoil3_sharp.csv`。这四个文件
 共同构成已验证的 89 截面多翼型真实桨叶示例。
 
-`init` 会先展示 `config.toml`、三个目录和可选示例的完整计划。已存在的受管理
+只需要全部已审计翼型和目录清单时使用：
+
+```powershell
+autoblade init C:\Engineering\airfoil-workspace --with-airfoil-library
+```
+
+该选项不复制截面示例；也可以与 `--with-examples` 同时使用。目录当前只包含三个
+已获 Hannnk 直接再分发授权的翼型，未审计的源码回归输入不会被隐式复制。完整
+清单和准入规则见[内置翼型目录](airfoil-library.md)。
+
+`init` 会先展示 `config.toml`、三个目录和可选数据资源的完整计划。已存在的受管理
 文件默认不会覆盖；脚本可显式使用 `--force`，人工会话可使用 `--interactive`
 逐次确认。目标中的其他文件永远不会被删除。
 
@@ -82,7 +92,10 @@ autoblade --config C:\Engineering\blade-workspace\config.toml doctor
 
 第一次命令只预览字段变化；`--apply` 会确认原配置自预览后未被修改，创建不
 覆盖既有备份的 `config.toml.v<旧版本>.bak[.N]`，再原子替换配置。普通读取只在
-内存兼容旧 schema，`config set` 和 `config reset` 不会顺便静默迁移。
+内存兼容旧 schema，`config set` 和 `config reset` 不会顺便静默迁移。升级自
+schema `1.0.0` 或 `2.0.0` 时，配置会改为 `blade_sections_dir`，但工具不会移动
+外部数据；还必须按[命名迁移记录](blade-sections-migration.md)将旧默认目录和标准
+CSV basename 显式改名。
 
 ## 卸载与回滚
 

@@ -7,14 +7,14 @@
 ```text
 input/
   airfoils/        翼型点云 CSV
-  section_params/  截面参数 CSV
+  blade_sections/  桨叶截面定义 CSV
 ```
 
 这些是 `config.toml` 的默认目录。输入树可以通过 `paths.input_dir` 整体迁移，也可以分别设置翼型和截面参数目录；完整路径解析规则见[运行时配置](configuration.md)。
 
 ## 启动前校验与错误定位
 
-翼型和截面参数文件会在启动 CATIA 前全部解析并校验。错误采用以下格式，包含绝对文件路径，并在适用时给出 CSV 行号和字段：
+翼型和桨叶截面定义文件会在启动 CATIA 前全部解析并校验。错误采用以下格式，包含绝对文件路径，并在适用时给出 CSV 行号和字段：
 
 ```text
 C:\project\input\airfoils\foil.csv: line 18, field 'y': expected a finite number, found 'bad'
@@ -72,7 +72,7 @@ x,y,z
 
 当前实现使用精确坐标比较，不会按容差合并非常接近的后缘点。输入生成流程应确保尖后缘首尾行完全一致。
 
-## 截面参数 CSV
+## 桨叶截面定义 CSV
 
 当前正式读取并校验以下六个米制表头：
 
@@ -117,10 +117,10 @@ idx,scale/m,translate_x/m,translate_y/m,translate_z/m,rotate/deg,airfoil
 
 ## 输出命名
 
-单模型默认名称由 `defaults.output_name_template` 根据翼型文件名和截面参数文件名生成，例如：
+单模型默认名称由 `defaults.output_name_template` 根据翼型文件名和桨叶截面定义文件名生成，例如：
 
 ```text
-sc1095.csv + section_params-1.csv
+sc1095.csv + blade_sections-1.csv
   -> sc1095_blade-1.CATPart
   -> sc1095_blade-1.stp
 ```

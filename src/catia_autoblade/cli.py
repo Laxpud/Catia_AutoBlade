@@ -283,7 +283,13 @@ def initialize_workspace(
     ],
     with_examples: Annotated[
         bool,
-        typer.Option(help="Copy the immutable minimal CSV examples."),
+        typer.Option(help="Copy the validated blade example and dependencies."),
+    ] = False,
+    with_airfoil_library: Annotated[
+        bool,
+        typer.Option(
+            help="Copy the complete audited built-in airfoil library."
+        ),
     ] = False,
     force: Annotated[
         bool,
@@ -301,6 +307,7 @@ def initialize_workspace(
         lambda: run_init_command(
             target,
             with_examples=with_examples,
+            with_airfoil_library=with_airfoil_library,
             force=force,
             interactive=interactive,
         )

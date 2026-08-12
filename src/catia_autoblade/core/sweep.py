@@ -13,7 +13,7 @@ from .planner import (
 )
 
 
-SWEEP_MANIFEST_SCHEMA_VERSION = 1
+SWEEP_MANIFEST_SCHEMA_VERSION = 2
 
 
 @dataclass(frozen=True, slots=True)
@@ -21,7 +21,7 @@ class SweepPlan:
     """一次显式笛卡尔积扫描的选择范围、稳定顺序和闭合任务。"""
 
     airfoil_filenames: tuple[str, ...]
-    section_params_filenames: tuple[str, ...]
+    blade_sections_filenames: tuple[str, ...]
     jobs: tuple[BladeBuildJob, ...]
 
     def as_dict(self) -> dict[str, object]:
@@ -33,7 +33,7 @@ class SweepPlan:
                     "job_id": f"sweep-{index:04d}",
                     "mode": job.mode,
                     "airfoil": job.airfoil_filename,
-                    "section_params": job.section_params_filename,
+                    "blade_sections": job.blade_sections_filename,
                     "output_dir": str(job.output_dir),
                     "output_name": job.output_name,
                     "output_files": [str(path) for path in job.output_paths],
@@ -46,7 +46,7 @@ class SweepPlan:
             "combination": "cartesian",
             "selection": {
                 "airfoils": list(self.airfoil_filenames),
-                "section_params": list(self.section_params_filenames),
+                "blade_sections": list(self.blade_sections_filenames),
             },
             "job_count": len(self.jobs),
             "jobs": manifest_jobs,
@@ -75,33 +75,33 @@ class SweepPlanner:
         output_base_dir: str | Path,
         *,
         airfoil_dir: str | Path,
-        section_params_dir: str | Path,
+        blade_sections_dir: str | Path,
         output_name_template: str,
         author: str,
     ) -> None:
         self.output_base_dir = Path(output_base_dir).resolve()
         self.airfoil_dir = Path(airfoil_dir).resolve()
-        self.section_params_dir = Path(section_params_dir).resolve()
+        self.blade_sections_dir = Path(blade_sections_dir).resolve()
         self.output_name_template = output_name_template
         self.author = author
 
     def plan(
         self,
         airfoil_filenames: Iterable[str],
-        section_params_filenames: Iterable[str],
+        blade_sections_filenames: Iterable[str],
     ) -> SweepPlan:
         """校验显式选择并生成可直接交给共享 Executor 的闭合任务。"""
         airfoils = _stable_selection(airfoil_filenames, label="airfoil")
         sections = _stable_selection(
-            section_params_filenames,
-            label="section parameter",
+            blade_sections_filenames,
+            label="blade section definition",
         )
 
         # 1. 在展开组合前一次性检查模板模式，保证七列自包含定义不会产生
         # 部分任务，也不会因输入目录变化而被静默纳入扫描。
         for section_filename in sections:
             section_path = _resolve_section_file(
-                self.section_params_dir,
+                self.blade_sections_dir,
                 section_filename,
             )
             if inspect_section_mode(section_path) != "single":
@@ -120,7 +120,7 @@ class SweepPlanner:
                 section_filename,
                 self.output_base_dir / Path(airfoil_filename).stem,
                 airfoil_dir=self.airfoil_dir,
-                section_params_dir=self.section_params_dir,
+                blade_sections_dir=self.blade_sections_dir,
                 output_name_template=self.output_name_template,
                 author=self.author,
             )
@@ -130,7 +130,7 @@ class SweepPlanner:
         _validate_output_conflicts(jobs, scope="Sweep")
         return SweepPlan(
             airfoil_filenames=airfoils,
-            section_params_filenames=sections,
+            blade_sections_filenames=sections,
             jobs=jobs,
         )
 

@@ -115,9 +115,9 @@ def test_sweep_subcommand_parses_repeatable_explicit_selections(
             "--airfoil",
             "foil-a.csv",
             "--section",
-            "section_params-2.csv",
+            "blade_sections-2.csv",
             "--section",
-            "section_params-1.csv",
+            "blade_sections-1.csv",
             "--output",
             "generated",
             "--dry-run",
@@ -128,7 +128,7 @@ def test_sweep_subcommand_parses_repeatable_explicit_selections(
     assert calls == [
         (
             ["foil-b.csv", "foil-a.csv"],
-            ["section_params-2.csv", "section_params-1.csv"],
+            ["blade_sections-2.csv", "blade_sections-1.csv"],
             "generated",
             True,
             False,
@@ -187,7 +187,7 @@ def test_config_migrate_apply_creates_backup_through_cli(tmp_path) -> None:
 input_dir = "input"
 output_dir = "output"
 airfoil_dir = 'input\airfoils'
-section_params_dir = 'input\section_params'
+blade_sections_dir = 'input\blade_sections'
 [defaults]
 author = ""
 output_name_template = "{blade}"
@@ -208,7 +208,7 @@ output_name_template = "{blade}"
     assert "Preview only" in preview.stdout
     assert applied.exit_code == 0, applied.output
     assert "Backup created" in applied.stdout
-    assert 'version = "2.0.0"' in config_file.read_text(encoding="utf-8")
+    assert 'version = "3.0.0"' in config_file.read_text(encoding="utf-8")
     assert (tmp_path / "config.toml.v1.0.0.bak").is_file()
 
 
@@ -285,7 +285,7 @@ def test_global_explicit_config_is_forwarded_to_commands(
     monkeypatch,
 ) -> None:
     config_file = tmp_path / "custom.toml"
-    config_file.write_text('version = "2.0.0"', encoding="utf-8")
+    config_file.write_text('version = "3.0.0"', encoding="utf-8")
     calls = []
 
     def fake_run(config_show, *, config_manager):
@@ -310,20 +310,43 @@ def test_init_subcommand_requires_explicit_target_and_forwards_options(
 ) -> None:
     calls = []
 
-    def fake_run(target, *, with_examples, force, interactive):
-        calls.append((target, with_examples, force, interactive))
+    def fake_run(
+        target,
+        *,
+        with_examples,
+        with_airfoil_library,
+        force,
+        interactive,
+    ):
+        calls.append(
+            (
+                target,
+                with_examples,
+                with_airfoil_library,
+                force,
+                interactive,
+            )
+        )
 
     monkeypatch.setattr(initialize_commands, "run_init_command", fake_run)
 
     missing = runner.invoke(cli.app, ["init"])
     result = runner.invoke(
         cli.app,
-        ["init", str(tmp_path / "workspace"), "--with-examples", "--force"],
+        [
+            "init",
+            str(tmp_path / "workspace"),
+            "--with-examples",
+            "--with-airfoil-library",
+            "--force",
+        ],
     )
 
     assert missing.exit_code == 2
     assert result.exit_code == 0, result.output
-    assert calls == [(tmp_path / "workspace", True, True, False)]
+    assert calls == [
+        (tmp_path / "workspace", True, True, True, False)
+    ]
 
 
 def test_doctor_subcommand_uses_discovered_config(monkeypatch) -> None:
@@ -393,9 +416,9 @@ def test_missing_repository_file_exits_one_on_stderr(
     config.paths.input_dir = tmp_path / "input"
     config.paths.output_dir = tmp_path / "output"
     config.paths.airfoil_dir = tmp_path / "input" / "airfoils"
-    config.paths.section_params_dir = tmp_path / "input" / "sections"
+    config.paths.blade_sections_dir = tmp_path / "input" / "sections"
     config.paths.airfoil_dir.mkdir(parents=True)
-    config.paths.section_params_dir.mkdir(parents=True)
+    config.paths.blade_sections_dir.mkdir(parents=True)
     manager = ConfigManager(tmp_path / "config.toml")
     manager.save(config)
     result = runner.invoke(
@@ -412,7 +435,7 @@ def test_missing_repository_file_exits_one_on_stderr(
     )
 
     assert result.exit_code == 1
-    assert "No section parameter files were found" in result.stderr
+    assert "No blade section definition files were found" in result.stderr
 
 
 def test_invalid_toml_config_exits_one_on_stderr(tmp_path, monkeypatch) -> None:

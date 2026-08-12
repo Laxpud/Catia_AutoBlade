@@ -56,6 +56,10 @@ autoblade init C:\Engineering\blade-workspace --with-examples
 
 `--with-examples` installs the validated 89-section multi-airfoil blade example
 and its three referenced airfoils into the external workspace.
+Use `--with-airfoil-library` to copy the complete audited built-in airfoil
+catalog and its manifest without copying blade section examples. The current
+catalog contains the three Hannnk airfoils covered by direct redistribution
+permission; see the [data audit](https://github.com/Laxpud/catia-autoblade/blob/main/docs/example-data-audit.md).
 
 Public PyPI installation is not supported. Maintainers working from a source checkout use:
 
@@ -89,13 +93,13 @@ uv run autoblade doctor
 Create one blade:
 
 ```powershell
-uv run autoblade create --airfoil sc1095.csv --section section_params-1.csv
+uv run autoblade create --airfoil sc1095.csv --section blade_sections-1.csv
 ```
 
 Create the repository multi-airfoil sample without a fallback `--airfoil`:
 
 ```powershell
-uv run autoblade create --section section_params-multi-airfoil.csv
+uv run autoblade create --section blade_sections-multi-airfoil.csv
 ```
 
 Use `--keep-failed-part` to save a `*_failed.CATPart` for debugging modeling
@@ -111,14 +115,14 @@ Preview an explicit 2 × 2 Cartesian product without starting CATIA:
 
 ```powershell
 uv run autoblade sweep --airfoil sc1095.csv --airfoil sd7032_sharp.csv `
-  --section section_params-1.csv --section section_params-2.csv --dry-run
+  --section blade_sections-1.csv --section blade_sections-2.csv --dry-run
 ```
 
 Detailed options, interactive behavior, standalone compatibility entry points, previews, overwrite rules, and exit codes are documented in the [CLI reference](https://github.com/Laxpud/catia-autoblade/blob/main/docs/cli.md).
 
 ## Input overview
 
-By default, airfoil CSV files belong in `input/airfoils/` and section parameter CSV files in `input/section_params/`; both locations are configurable. Coordinates, units, ordering, required columns, and current validation limits are documented in [Input data formats](https://github.com/Laxpud/catia-autoblade/blob/main/docs/input-formats.md).
+By default, airfoil CSV files belong in `input/airfoils/` and blade section definition CSV files in `input/blade_sections/`; both locations are configurable. Coordinates, units, ordering, required columns, and current validation limits are documented in [Input data formats](https://github.com/Laxpud/catia-autoblade/blob/main/docs/input-formats.md).
 
 ## Documentation
 

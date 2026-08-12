@@ -12,11 +12,11 @@ def execute_job(job: BladeBuildJob, *, blade_creator=None) -> BuildResult:
 
     blade_creator(
         job.airfoil_filename,
-        job.section_params_filename,
+        job.blade_sections_filename,
         job.output_dir,
         job.output_name,
         airfoil_dir=job.airfoil_dir,
-        section_params_dir=job.section_params_dir,
+        blade_sections_dir=job.blade_sections_dir,
         keep_failed_part=job.keep_failed_part,
         input_plan=job.input_plan,
     )

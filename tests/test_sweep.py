@@ -36,8 +36,8 @@ def _inputs(tmp_path: Path) -> tuple[Path, Path, list[str]]:
     section_dir.mkdir()
     for filename in ("foil-a.csv", "foil-b.csv", "unselected.csv"):
         (airfoil_dir / filename).write_text(SHARP_AIRFOIL, encoding="utf-8")
-    sections = [f"section_params-{index}.csv" for index in range(1, 6)]
-    for filename in [*sections, "section_params-extra.csv"]:
+    sections = [f"blade_sections-{index}.csv" for index in range(1, 6)]
+    for filename in [*sections, "blade_sections-extra.csv"]:
         (section_dir / filename).write_text(SECTIONS, encoding="utf-8")
     (section_dir / "self-contained.csv").write_text(
         SELF_CONTAINED_SECTIONS,
@@ -56,7 +56,7 @@ def _planner(
     return SweepPlanner(
         tmp_path / "output",
         airfoil_dir=airfoil_dir,
-        section_params_dir=section_dir,
+        blade_sections_dir=section_dir,
         output_name_template=output_name_template,
         author="",
     )
@@ -74,7 +74,7 @@ def test_sweep_planner_generates_ten_airfoil_major_jobs_from_explicit_inputs(
 
     assert len(plan.jobs) == 10
     assert [
-        (job.airfoil_filename, job.section_params_filename)
+        (job.airfoil_filename, job.blade_sections_filename)
         for job in plan.jobs
     ] == [
         (airfoil, section)
@@ -82,7 +82,7 @@ def test_sweep_planner_generates_ten_airfoil_major_jobs_from_explicit_inputs(
         for section in sections
     ]
     assert "unselected.csv" not in plan.airfoil_filenames
-    assert "section_params-extra.csv" not in plan.section_params_filenames
+    assert "blade_sections-extra.csv" not in plan.blade_sections_filenames
 
 
 def test_sweep_manifest_is_stable_json_with_complete_ordered_job_list(
@@ -99,11 +99,11 @@ def test_sweep_manifest_is_stable_json_with_complete_ordered_job_list(
 
     assert serialized == plan.to_json()
     assert manifest == plan.as_dict()
-    assert manifest["schema_version"] == 1
+    assert manifest["schema_version"] == 2
     assert manifest["combination"] == "cartesian"
     assert manifest["selection"] == {
         "airfoils": ["foil-a.csv", "foil-b.csv"],
-        "section_params": sections[:2],
+        "blade_sections": sections[:2],
     }
     assert [job["job_id"] for job in manifest["jobs"]] == [
         "sweep-0001",
@@ -144,13 +144,13 @@ def test_sweep_dry_run_shows_manifest_and_conflicts_without_executor(
     workspace.mkdir()
     config_file = workspace / "config.toml"
     config_file.write_text(
-        """version = "2.0.0"
+        """version = "3.0.0"
 
 [paths]
 input_dir = "."
 output_dir = "output"
 airfoil_dir = "airfoils"
-section_params_dir = "sections"
+blade_sections_dir = "sections"
 
 [defaults]
 author = ""
@@ -192,13 +192,13 @@ def test_non_interactive_sweep_requires_both_explicit_dimensions(
     workspace.mkdir()
     config_file = workspace / "config.toml"
     config_file.write_text(
-        """version = "2.0.0"
+        """version = "3.0.0"
 
 [paths]
 input_dir = "."
 output_dir = "output"
 airfoil_dir = "airfoils"
-section_params_dir = "sections"
+blade_sections_dir = "sections"
 """,
         encoding="utf-8",
     )
@@ -222,13 +222,13 @@ def test_sweep_execution_delegates_complete_plan_to_shared_executor(
     workspace.mkdir()
     config_file = workspace / "config.toml"
     config_file.write_text(
-        """version = "2.0.0"
+        """version = "3.0.0"
 
 [paths]
 input_dir = "."
 output_dir = "output"
 airfoil_dir = "airfoils"
-section_params_dir = "sections"
+blade_sections_dir = "sections"
 
 [defaults]
 author = ""
@@ -256,11 +256,11 @@ output_name_template = "{blade}"
     assert isinstance(results, list)
     assert len(results) == len(received) == 4
     assert [
-        (job.airfoil_filename, job.section_params_filename)
+        (job.airfoil_filename, job.blade_sections_filename)
         for job in received
     ] == [
-        ("foil-a.csv", "section_params-1.csv"),
-        ("foil-a.csv", "section_params-2.csv"),
-        ("foil-b.csv", "section_params-1.csv"),
-        ("foil-b.csv", "section_params-2.csv"),
+        ("foil-a.csv", "blade_sections-1.csv"),
+        ("foil-a.csv", "blade_sections-2.csv"),
+        ("foil-b.csv", "blade_sections-1.csv"),
+        ("foil-b.csv", "blade_sections-2.csv"),
     ]

@@ -22,12 +22,12 @@ def run_create_command(
     """规划并执行一个模型；失败保持为异常交给最外层 CLI 呈现。"""
     manager = config_manager or ConfigManager()
     config = manager.load_runtime()
-    airfoil_files, section_params_files = get_available_files(
+    airfoil_files, blade_sections_files = get_available_files(
         airfoil_dir=config.paths.airfoil_dir,
-        section_params_dir=config.paths.section_params_dir,
+        blade_sections_dir=config.paths.blade_sections_dir,
     )
-    if not section_params_files:
-        raise ValueError("No section parameter files were found.")
+    if not blade_sections_files:
+        raise ValueError("No blade section definition files were found.")
 
     if interactive:
         from ..interactive.prompts import (
@@ -38,7 +38,7 @@ def run_create_command(
         )
 
         selected_section = section or select_sections(
-            section_params_files,
+            blade_sections_files,
             multi=False,
         )[0]
         output_default = (
@@ -61,13 +61,13 @@ def run_create_command(
             else config.paths.output_dir
         )
 
-    if selected_section not in section_params_files:
+    if selected_section not in blade_sections_files:
         raise ValueError(
-            f"Section parameter file not found: {selected_section!r}."
+            f"Blade section definition file not found: {selected_section!r}."
         )
 
     section_mode = inspect_section_mode(
-        config.paths.section_params_dir / selected_section
+        config.paths.blade_sections_dir / selected_section
     )
     if section_mode == "multi":
         if airfoil is not None:
@@ -92,7 +92,7 @@ def run_create_command(
         selected_section,
         output_dir,
         airfoil_dir=config.paths.airfoil_dir,
-        section_params_dir=config.paths.section_params_dir,
+        blade_sections_dir=config.paths.blade_sections_dir,
         output_name_template=config.defaults.output_name_template,
         author=config.defaults.author,
         keep_failed_part=keep_failed_part,

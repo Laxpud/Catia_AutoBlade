@@ -17,12 +17,12 @@ def build_output_name(
 ) -> str:
     """根据配置模板生成不含目录和扩展名的输出名称。
 
-    ``idx`` 延续历史命名规则：对 ``section_params-1.csv`` 取 ``1``；
+    ``idx`` 延续历史命名规则：对 ``blade_sections-1.csv`` 取 ``1``；
     不符合该前缀的文件则使用完整 stem，避免静默生成空名称。
     """
     airfoil = Path(airfoil_filename).stem if airfoil_filename else None
     section = Path(section_filename).stem
-    prefix = "section_params-"
+    prefix = "blade_sections-"
     idx = section[len(prefix):] if section.startswith(prefix) else section
 
     fields = {

@@ -91,5 +91,5 @@ def test_unavailable_platform_reports_catia_capability_error(
             tmp_path / "output",
             "blade",
             airfoil_dir=airfoil_dir,
-            section_params_dir=section_dir,
+            blade_sections_dir=section_dir,
         )

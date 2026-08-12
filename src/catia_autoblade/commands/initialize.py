@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
 from importlib import resources
+import json
 import os
 from pathlib import Path
+import re
 import site
 import tempfile
 from uuid import uuid4
@@ -39,30 +42,38 @@ class WorkspaceInitPlan:
 
 _DIRECTORIES = (
     Path("input") / "airfoils",
-    Path("input") / "section_params",
+    Path("input") / "blade_sections",
     Path("output"),
 )
-_BASE_RESOURCES = {Path("config.toml"): Path("config.toml")}
+_BASE_RESOURCES = {
+    Path("config.toml"): Path("workspace") / "config.toml"
+}
+_EXAMPLE_AIRFOIL_FILENAMES = (
+    "airfoil1_sharp.csv",
+    "airfoil2_sharp.csv",
+    "airfoil3_sharp.csv",
+)
 _EXAMPLE_RESOURCES = {
-    Path("input") / "airfoils" / "airfoil1_sharp.csv": (
-        Path("airfoils") / "airfoil1_sharp.csv"
-    ),
-    Path("input") / "airfoils" / "airfoil2_sharp.csv": (
-        Path("airfoils") / "airfoil2_sharp.csv"
-    ),
-    Path("input") / "airfoils" / "airfoil3_sharp.csv": (
-        Path("airfoils") / "airfoil3_sharp.csv"
-    ),
-    Path("input") / "section_params" / "example-section-params.csv": (
-        Path("section_params") / "example-section-params.csv"
+    Path("input") / "blade_sections" / "example-blade-sections.csv": (
+        Path("workspace")
+        / "blade_sections"
+        / "example-blade-sections.csv"
     ),
 }
+_AIRFOIL_LIBRARY_MANIFEST = Path("airfoil_library") / "manifest.json"
+_AIRFOIL_LIBRARY_DESTINATION = (
+    Path("input") / "airfoils" / "manifest.json"
+)
+_CANONICAL_LIBRARY_FILENAME = re.compile(
+    r"[a-z0-9][a-z0-9_-]*\.csv"
+)
 
 
 def plan_workspace_initialization(
     target: str | Path,
     *,
     with_examples: bool,
+    with_airfoil_library: bool = False,
 ) -> WorkspaceInitPlan:
     """生成不触碰磁盘的初始化计划，并拒绝 site-packages 内目标。"""
     target_path = Path(target).expanduser().resolve()
@@ -81,12 +92,18 @@ def plan_workspace_initialization(
             )
         )
 
+    resource_root = resources.files("catia_autoblade.resources")
+    library_resources: dict[Path, Path] = {}
+    if with_examples or with_airfoil_library:
+        library_resources = _load_airfoil_library_resources(resource_root)
     selected_resources = dict(_BASE_RESOURCES)
     if with_examples:
         selected_resources.update(_EXAMPLE_RESOURCES)
-    resource_root = resources.files("catia_autoblade.resources").joinpath(
-        "workspace"
-    )
+        for filename in _EXAMPLE_AIRFOIL_FILENAMES:
+            destination = Path("input") / "airfoils" / filename
+            selected_resources[destination] = library_resources[destination]
+    if with_airfoil_library:
+        selected_resources.update(library_resources)
     for relative_path, resource_path in selected_resources.items():
         destination = target_path / relative_path
         resource_item = resource_root.joinpath(*resource_path.parts)
@@ -107,9 +124,14 @@ def run_init_command(
     with_examples: bool,
     force: bool,
     interactive: bool,
+    with_airfoil_library: bool = False,
 ) -> WorkspaceInitPlan:
     """展示计划后创建工作区；冲突必须由 force 或交互确认授权。"""
-    plan = plan_workspace_initialization(target, with_examples=with_examples)
+    plan = plan_workspace_initialization(
+        target,
+        with_examples=with_examples,
+        with_airfoil_library=with_airfoil_library,
+    )
     typer.echo(f"[INFO] Workspace initialization plan: {plan.target}")
     for item in plan.items:
         typer.echo(f"  {item.action}: {item.path}")
@@ -130,6 +152,91 @@ def run_init_command(
     _execute_workspace_plan(plan, allow_replace=overwrite_allowed)
     typer.echo(f"[SUCCESS] Workspace initialized: {plan.target}")
     return plan
+
+
+def _load_airfoil_library_resources(resource_root) -> dict[Path, Path]:
+    """读取并校验内置目录清单，避免复制不可复现或越界的资源。"""
+    manifest_item = resource_root.joinpath(
+        *_AIRFOIL_LIBRARY_MANIFEST.parts
+    )
+    try:
+        manifest_bytes = manifest_item.read_bytes()
+        manifest = json.loads(manifest_bytes)
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise RuntimeError(
+            f"Cannot read built-in airfoil library manifest: {error}"
+        ) from error
+
+    if manifest.get("schema_version") != 1:
+        raise RuntimeError("Unsupported built-in airfoil library schema")
+    records = manifest.get("airfoils")
+    if not isinstance(records, list) or not records:
+        raise RuntimeError("Built-in airfoil library manifest is empty")
+
+    selected = {
+        _AIRFOIL_LIBRARY_DESTINATION: _AIRFOIL_LIBRARY_MANIFEST
+    }
+    seen_filenames: set[str] = set()
+    for record in records:
+        if not isinstance(record, dict):
+            raise RuntimeError("Invalid built-in airfoil library record")
+        filename = record.get("filename")
+        expected_digest = record.get("sha256")
+        if (
+            not isinstance(filename, str)
+            or _CANONICAL_LIBRARY_FILENAME.fullmatch(filename) is None
+        ):
+            raise RuntimeError(
+                f"Invalid built-in airfoil library filename: {filename!r}"
+            )
+        if filename in seen_filenames:
+            raise RuntimeError(
+                f"Duplicate built-in airfoil library filename: {filename}"
+            )
+        if not isinstance(expected_digest, str) or not re.fullmatch(
+            r"[0-9a-f]{64}", expected_digest
+        ):
+            raise RuntimeError(
+                f"Invalid SHA-256 for built-in airfoil: {filename}"
+            )
+
+        resource_path = Path("airfoil_library") / filename
+        resource_item = resource_root.joinpath(*resource_path.parts)
+        try:
+            content = resource_item.read_bytes()
+        except OSError as error:
+            raise RuntimeError(
+                f"Cannot read built-in airfoil resource {filename}: {error}"
+            ) from error
+        actual_digest = hashlib.sha256(content).hexdigest()
+        if actual_digest != expected_digest:
+            raise RuntimeError(
+                "Built-in airfoil resource digest mismatch: "
+                f"{filename}"
+            )
+
+        seen_filenames.add(filename)
+        selected[Path("input") / "airfoils" / filename] = resource_path
+
+    missing_examples = set(_EXAMPLE_AIRFOIL_FILENAMES) - seen_filenames
+    if missing_examples:
+        raise RuntimeError(
+            "Built-in airfoil library is missing example dependencies: "
+            f"{sorted(missing_examples)}"
+        )
+    library_root = resource_root.joinpath("airfoil_library")
+    packaged_csv = {
+        item.name
+        for item in library_root.iterdir()
+        if item.name.endswith(".csv")
+    }
+    unlisted_csv = packaged_csv - seen_filenames
+    if unlisted_csv:
+        raise RuntimeError(
+            "Built-in airfoil resources are missing from the manifest: "
+            f"{sorted(unlisted_csv)}"
+        )
+    return selected
 
 
 def _execute_workspace_plan(

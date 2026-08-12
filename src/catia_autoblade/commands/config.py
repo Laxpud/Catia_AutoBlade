@@ -7,7 +7,7 @@ CONFIG_KEYS = (
     "input_dir",
     "output_dir",
     "airfoil_dir",
-    "section_params_dir",
+    "blade_sections_dir",
     "author",
     "output_name_template",
 )
@@ -31,7 +31,7 @@ def run_config_command(
         typer.echo(f"  input_dir: {config.paths.input_dir}")
         typer.echo(f"  output_dir: {config.paths.output_dir}")
         typer.echo(f"  airfoil_dir: {config.paths.airfoil_dir}")
-        typer.echo(f"  section_params_dir: {config.paths.section_params_dir}")
+        typer.echo(f"  blade_sections_dir: {config.paths.blade_sections_dir}")
         typer.echo(f"  author: {config.defaults.author}")
         typer.echo(
             "  output_name_template: "

@@ -164,7 +164,7 @@ def test_validation_finishes_before_catia_session_starts(tmp_path: Path) -> None
     section_dir = tmp_path / "sections"
     _write(airfoil_dir / "foil.csv", VALID_AIRFOIL)
     _write(
-        section_dir / "section_params-1.csv",
+        section_dir / "blade_sections-1.csv",
         VALID_SECTIONS.rsplit("2,0.08,1,0,0,5\n", maxsplit=1)[0],
     )
     session_calls = []
@@ -176,11 +176,11 @@ def test_validation_finishes_before_catia_session_starts(tmp_path: Path) -> None
     with pytest.raises(InputValidationError, match="at least 2 section rows"):
         create_single_blade(
             "foil.csv",
-            "section_params-1.csv",
+            "blade_sections-1.csv",
             tmp_path / "output",
             "blade",
             airfoil_dir=airfoil_dir,
-            section_params_dir=section_dir,
+            blade_sections_dir=section_dir,
             keep_failed_part=True,
             session_factory=forbidden_session,
         )

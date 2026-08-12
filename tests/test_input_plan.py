@@ -169,7 +169,7 @@ def test_missing_multi_airfoil_reference_fails_before_catia_session(
             tmp_path / "output",
             "blade",
             airfoil_dir=airfoil_dir,
-            section_params_dir=section_dir,
+            blade_sections_dir=section_dir,
             session_factory=forbidden_session,
         )
 

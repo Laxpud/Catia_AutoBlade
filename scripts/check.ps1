@@ -20,9 +20,14 @@ if ($null -ne $uvCommand) {
     $uvExecutable = $uvCommand.Source
 }
 else {
-    $localUv = Join-Path $projectRoot ".venv\Scripts\uv.exe"
-    if (-not (Test-Path $localUv)) {
-        throw "uv was not found on PATH or in the project .venv."
+    # 桌面沙箱会把工具运行时放在项目级 .uv，而常规开发环境可能把 uv
+    # 安装进 .venv；两者都必须解析为明确文件，不能依赖当前工作目录。
+    $localUv = @(
+        (Join-Path $projectRoot ".uv\bin\uv.exe"),
+        (Join-Path $projectRoot ".venv\Scripts\uv.exe")
+    ) | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+    if (-not $localUv) {
+        throw "uv was not found on PATH or in the project .uv/.venv runtimes."
     }
     $uvExecutable = $localUv
 }

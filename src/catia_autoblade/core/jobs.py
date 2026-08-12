@@ -18,9 +18,9 @@ class BladeBuildJob:
 
     mode: BladeMode
     airfoil_filename: str | None
-    section_params_filename: str
+    blade_sections_filename: str
     airfoil_dir: Path
-    section_params_dir: Path
+    blade_sections_dir: Path
     output_dir: Path
     output_name: str
     input_plan: BladeInputPlan
@@ -49,7 +49,7 @@ class BuildResult:
             "status": self.status,
             "mode": self.job.mode,
             "airfoil": self.job.airfoil_filename,
-            "section": self.job.section_params_filename,
+            "section": self.job.blade_sections_filename,
         }
         if self.status == "success":
             result["output"] = str(self.job.output_dir)

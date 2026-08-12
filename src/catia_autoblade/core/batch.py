@@ -10,11 +10,11 @@ from .planner import plan_batch_jobs
 
 def batch_create_blades(
     airfoil_files=None,
-    section_params_files=None,
+    blade_sections_files=None,
     output_base_dir=None,
     *,
     airfoil_dir=None,
-    section_params_dir=None,
+    blade_sections_dir=None,
     output_name_template=None,
     author=None,
 ):
@@ -27,7 +27,7 @@ def batch_create_blades(
     runtime_config = None
     if (
         airfoil_dir is None
-        or section_params_dir is None
+        or blade_sections_dir is None
         or output_base_dir is None
         or output_name_template is None
         or author is None
@@ -36,8 +36,8 @@ def batch_create_blades(
 
     if airfoil_dir is None:
         airfoil_dir = runtime_config.paths.airfoil_dir
-    if section_params_dir is None:
-        section_params_dir = runtime_config.paths.section_params_dir
+    if blade_sections_dir is None:
+        blade_sections_dir = runtime_config.paths.blade_sections_dir
     if output_base_dir is None:
         output_base_dir = runtime_config.paths.output_dir
     if output_name_template is None:
@@ -47,17 +47,17 @@ def batch_create_blades(
 
     discovered_airfoils, discovered_sections = get_available_files(
         airfoil_dir=airfoil_dir,
-        section_params_dir=section_params_dir,
+        blade_sections_dir=blade_sections_dir,
     )
     if airfoil_files is None:
         airfoil_files = discovered_airfoils
-    if section_params_files is None:
-        section_params_files = discovered_sections
+    if blade_sections_files is None:
+        blade_sections_files = discovered_sections
 
-    section_params_files = list(section_params_files)
+    blade_sections_files = list(blade_sections_files)
     modes = [
-        inspect_section_mode(Path(section_params_dir) / section_filename)
-        for section_filename in section_params_files
+        inspect_section_mode(Path(blade_sections_dir) / section_filename)
+        for section_filename in blade_sections_files
     ]
     has_single_sections = "single" in modes
     selected_airfoils = [
@@ -74,10 +74,10 @@ def batch_create_blades(
 
     jobs = plan_batch_jobs(
         selected_airfoil,
-        section_params_files,
+        blade_sections_files,
         output_base_dir,
         airfoil_dir=airfoil_dir,
-        section_params_dir=section_params_dir,
+        blade_sections_dir=blade_sections_dir,
         output_name_template=output_name_template,
         author=author,
     )

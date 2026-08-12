@@ -12,8 +12,9 @@ pwsh -File scripts/check.ps1
 
 该脚本按顺序执行冻结锁文件同步、pytest、Ruff、Hatchling wheel/sdist 构建、
 全新 Python 3.14 环境的非 editable wheel 安装冒烟，以及实际产物元数据和内容
-清单校验。安装冒烟会验证三个入口的 help/version、`autoblade init`、配置读取、
-输入发现、完整 Parser/Planner 预检和注入 fake Builder 的执行路径；它明确清空
+清单校验。安装冒烟会验证三个入口的 help/version、示例和完整翼型目录的
+`autoblade init`、配置读取、输入发现、目录摘要、完整 Parser/Planner 预检和
+注入 fake Builder 的执行路径；它明确清空
 `PYTHONPATH` 并确认导入文件位于新环境的 `site-packages`。
 
 `.github/workflows/checks.yml` 在 Windows CI 中调用同一脚本，不维护另一套命令。
@@ -52,12 +53,13 @@ pytest 专用预期失败数据不得放入 `input/` 扫描目录。当前小型
 | `test_job_planner.py` | `BladeBuildJob` 输入闭合、稳定排序、无笛卡尔积、输出冲突和共享 Executor |
 | `test_sweep.py` | 显式 Cartesian product、十任务稳定顺序、自包含文件隔离、JSON 清单、dry-run 和输出冲突 |
 | `test_repository_inputs.py` | 版本化输入命名、89 行多翼型样例、引用完整性与唯一翼型顺序 |
+| `test_airfoil_library.py` | 内置目录来源授权、清单完整性、点数、SHA-256 和仓库参考输入一致性 |
 | `test_geometry_math.py` | m/mm 边界、截面缩放以及旋转→缩放→平移顺序 |
 | `test_multi_airfoil_geometry.py` | 唯一 CATIA 基准几何创建和逐截面引用编排 |
 | `test_platform_boundary.py` | 核心无 COM 导入、全新解释器导入和不可用 CATIA 后端能力错误 |
 | `test_runtime_config.py` | 配置路径、文件扫描、CLI 输出覆盖和输出命名 |
 | `test_config_compatibility.py` | 配置发现优先级、历史 schema、迁移备份、未来/未知/废弃字段和并发修改防护 |
-| `test_workspace_init.py` | 外部工作区、可选资源、覆盖授权、只读目录和 site-packages 隔离 |
+| `test_workspace_init.py` | 外部工作区、示例/目录资源边界、覆盖授权、只读目录和 site-packages 隔离 |
 | `test_doctor.py` | 诊断摘要、COM 初始化配对、配置目录与失败退出边界 |
 | `test_distribution_workflow.py` | Hatchling 白名单、禁止产物路径和真实 CATIA 发布证据门槛 |
 | `test_cli.py` | 主命令、独立入口、长短选项与参数分派 |
@@ -102,7 +104,7 @@ pwsh -File scripts/smoke_real_catia.ps1
 BREP 实体和运行前后新增 `CNEXT` PID。产物与
 JSON 记录保存在忽略的 `output/real-catia-smoke-<时间>/`，不能提交 Git。
 
-2026-08-07 已使用 CATIA P3 V5-6R2020 对 `section_params-multi-airfoil.csv` 执行真实回归：三个不同点数翼型完成 89 截面 Loft 和实体封闭，CATPart 与 STEP AP242 均成功输出；STEP 包含闭合实体 BREP，命令结束后没有残留 `CNEXT` 进程。详细记录见[展向多翼型设计](multi-airfoil-design.md)。
+2026-08-07 已使用 CATIA P3 V5-6R2020 对 `blade_sections-multi-airfoil.csv` 执行真实回归：三个不同点数翼型完成 89 截面 Loft 和实体封闭，CATPart 与 STEP AP242 均成功输出；STEP 包含闭合实体 BREP，命令结束后没有残留 `CNEXT` 进程。详细记录见[展向多翼型设计](multi-airfoil-design.md)。
 
 2026-08-11 使用从 dirty worktree 构建并安装到全新 CPython 3.14.4 环境的
 `0.2.0` 候选 wheel 重复同一 89 截面回归：CATPart 为 7,689,114 字节，STEP 为 1,022,363

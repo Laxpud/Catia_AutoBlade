@@ -17,6 +17,7 @@ from .settings import AppConfig, CURRENT_CONFIG_SCHEMA_VERSION
 
 
 LEGACY_CONFIG_SCHEMA_VERSION = "1.0.0"
+PREVIOUS_CONFIG_SCHEMA_VERSION = "2.0.0"
 
 
 class ConfigCompatibilityError(ValueError):
@@ -67,10 +68,18 @@ class ConfigManager:
     CONFIG_FILE = Path("config.toml")
     USER_CONFIG_DIR = "catia-autoblade"
     CURRENT_SCHEMA_VERSION = CURRENT_CONFIG_SCHEMA_VERSION
-    LEGACY_SCHEMA_VERSIONS = frozenset({LEGACY_CONFIG_SCHEMA_VERSION, "unversioned"})
+    LEGACY_SCHEMA_VERSIONS = frozenset(
+        {
+            LEGACY_CONFIG_SCHEMA_VERSION,
+            PREVIOUS_CONFIG_SCHEMA_VERSION,
+            "unversioned",
+        }
+    )
     # 只有真实移除字段时才向此表增加条目。迁移器会在通用 unknown-field
     # 错误之前给出替代字段，避免维护者为了假设场景预建迁移类层次。
-    DEPRECATED_FIELDS: ClassVar[Mapping[str, str]] = {}
+    DEPRECATED_FIELDS: ClassVar[Mapping[str, str]] = {
+        "paths.section_params_dir": "paths.blade_sections_dir",
+    }
 
     def __init__(
         self,
@@ -168,15 +177,15 @@ class ConfigManager:
 
         # 2. 专用输入目录的相对值以 input_dir 为基准；绝对值保持不变。
         airfoil_dir = self._resolve_path(config.paths.airfoil_dir, input_dir)
-        section_params_dir = self._resolve_path(
-            config.paths.section_params_dir,
+        blade_sections_dir = self._resolve_path(
+            config.paths.blade_sections_dir,
             input_dir,
         )
 
         config.paths.input_dir = input_dir
         config.paths.output_dir = output_dir
         config.paths.airfoil_dir = airfoil_dir
-        config.paths.section_params_dir = section_params_dir
+        config.paths.blade_sections_dir = blade_sections_dir
         return config
 
     @staticmethod
@@ -282,22 +291,46 @@ class ConfigManager:
                     "version",
                     source_version,
                     self.CURRENT_SCHEMA_VERSION,
-                    "Upgrade to the current path-resolution schema.",
+                    "Upgrade to the current configuration schema.",
                 )
             )
         migrated["version"] = self.CURRENT_SCHEMA_VERSION
 
-        # schema 1.0.0 曾把专用目录写成 input\\airfoils，同时运行时又以
-        # input_dir 为基准拼接。只剥离与 input_dir 完全相同的前缀，绝对路径、
-        # 自定义同级路径以及用户的输出命名模板都保持原样。
+        # 1. schema 3.0.0 将用户可见集合统一命名为 blade_sections。旧默认
+        #    目录同步改名；自定义目录值只改配置键，不猜测或移动用户数据。
+        # 2. schema 1.0.0 曾把专用目录写成 input\\airfoils，同时运行时又以
+        #    input_dir 为基准拼接。只剥离与 input_dir 完全相同的前缀，绝对路径、
+        #    自定义同级路径以及用户的输出命名模板都保持原样。
         paths = migrated.get("paths")
         if isinstance(paths, Mapping):
             input_dir = str(paths.get("input_dir", "input"))
-            for field in ("airfoil_dir", "section_params_dir"):
+            if "section_params_dir" in paths:
+                if "blade_sections_dir" in paths:
+                    raise ConfigCompatibilityError(
+                        "Configuration contains both paths.section_params_dir "
+                        "and paths.blade_sections_dir. Keep only one before "
+                        "migration."
+                    )
+                before = str(paths.pop("section_params_dir"))
+                after = self._strip_legacy_input_prefix(before, input_dir)
+                after = self._rename_legacy_blade_sections_directory(after)
+                paths["blade_sections_dir"] = after
+                changes.append(
+                    ConfigMigrationChange(
+                        "paths.section_params_dir",
+                        before,
+                        after,
+                        "Rename to paths.blade_sections_dir for schema 3.0.0.",
+                    )
+                )
+
+            for field in ("airfoil_dir", "blade_sections_dir"):
                 if field not in paths:
                     continue
                 before = str(paths[field])
                 after = self._strip_legacy_input_prefix(before, input_dir)
+                if field == "blade_sections_dir":
+                    after = self._rename_legacy_blade_sections_directory(after)
                 if after != before:
                     paths[field] = after
                     changes.append(
@@ -391,6 +424,14 @@ class ConfigManager:
             return value
         remaining = candidate_parts[len(base_parts) :]
         return str(Path(*remaining)) if remaining else value
+
+    @staticmethod
+    def _rename_legacy_blade_sections_directory(value: str) -> str:
+        """只迁移旧默认目录名，保留所有自定义或绝对路径。"""
+        normalized = value.replace("\\", "/").removeprefix("./")
+        if normalized == "section_params":
+            return "blade_sections"
+        return value
 
     @staticmethod
     def _contains_dotted_field(document: Mapping[str, Any], field: str) -> bool:

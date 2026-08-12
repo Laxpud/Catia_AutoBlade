@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "authorization": {
+    "basis": "direct_permission_from_author",
+    "author": "Hannnk",
+    "homepage": "https://github.com/Hannnk",
+    "email": "hannkzhang@gmail.com",
+    "confirmed_by": "project_maintainer",
+    "confirmed_on": "2026-08-12",
+    "redistribution_scope": [
+      "public_source_repository",
+      "source_distribution",
+      "wheel",
+      "external_workspace_copy"
+    ]
+  },
+  "airfoils": [
+    {
+      "id": "airfoil1_sharp",
+      "filename": "airfoil1_sharp.csv",
+      "source_author": "Hannnk",
+      "source_homepage": "https://github.com/Hannnk",
+      "license_or_permission": "direct_permission_from_author",
+      "modified": true,
+      "modification_notes": "Filename normalized to a lowercase stable ID; repository point coordinates are unchanged since intake.",
+      "point_count": 300,
+      "sha256": "fc9dfa453d8547617a0c5f3d36ece38d01e90b0c0582b5c024906fa4c896b077"
+    },
+    {
+      "id": "airfoil2_sharp",
+      "filename": "airfoil2_sharp.csv",
+      "source_author": "Hannnk",
+      "source_homepage": "https://github.com/Hannnk",
+      "license_or_permission": "direct_permission_from_author",
+      "modified": true,
+      "modification_notes": "Filename normalized to a lowercase stable ID; repository point coordinates are unchanged since intake.",
+      "point_count": 253,
+      "sha256": "3112030ff5755fd62f064d64f55bd27297e1450bf0b17d7172a18ff06af4fca8"
+    },
+    {
+      "id": "airfoil3_sharp",
+      "filename": "airfoil3_sharp.csv",
+      "source_author": "Hannnk",
+      "source_homepage": "https://github.com/Hannnk",
+      "license_or_permission": "direct_permission_from_author",
+      "modified": true,
+      "modification_notes": "Filename normalized to a lowercase stable ID; repository point coordinates are unchanged since intake.",
+      "point_count": 249,
+      "sha256": "2b891ada6dd70414f6b83042dbf7441ddb0133ed81ce3e1a12c233905a6cd8a4"
+    }
+  ]
+}

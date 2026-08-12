@@ -34,18 +34,25 @@ autoblade --config C:\Engineering\blade-workspace\config.toml list
 ## `init`
 
 ```text
-autoblade init TARGET [--with-examples] [--force] [--interactive]
+autoblade init TARGET [--with-examples] [--with-airfoil-library]
+                      [--force] [--interactive]
 ```
 
 `TARGET` 必须显式给出。命令先展示所有受影响路径，然后在目标中创建
-`config.toml`、`input/airfoils/`、`input/section_params/` 和 `output/`；
-`--with-examples` 复制随 wheel 分发的 `example-section-params.csv` 及其引用的
+`config.toml`、`input/airfoils/`、`input/blade_sections/` 和 `output/`；
+`--with-examples` 复制随 wheel 分发的 `example-blade-sections.csv` 及其引用的
 三个翼型。该示例是已经完成真实 CATIA 回归的 89 截面多翼型桨叶，而不是人工
-构造的最小两截面模板。目标不能位于 `site-packages` 内。
+构造的最小两截面模板。`--with-airfoil-library` 复制清单以及其中全部已完成来源
+和再分发审计的翼型，不复制截面示例；两个选项可以同时使用，重叠翼型只计划
+一次。目标不能位于 `site-packages` 内。
 
 已存在的受管理文件默认导致退出码 1，且执行前不创建任何计划项。`--force` 允许
 脚本替换这些明确列出的文件；`--interactive` 允许人工确认。两种方式都不会删除
 目标中的其他文件。安装、升级和卸载不会自动调用 `init`。
+
+当前完整目录只包含示例使用的三个 Hannnk 翼型，因此两个选项复制的 CSV 集合
+暂时相同，但只有目录选项会复制 `input/airfoils/manifest.json`。目录范围和排除
+资产见[内置翼型目录](airfoil-library.md)。
 
 ## `doctor`
 
@@ -89,8 +96,8 @@ autoblade create [--airfoil NAME] --section NAME [--output DIR]
 常用调用：
 
 ```powershell
-uv run autoblade create --airfoil sc1095.csv --section section_params-1.csv
-uv run autoblade create --section section_params-multi-airfoil.csv
+uv run autoblade create --airfoil sc1095.csv --section blade_sections-1.csv
+uv run autoblade create --section blade_sections-multi-airfoil.csv
 uv run autoblade create --interactive
 ```
 
@@ -146,11 +153,11 @@ autoblade sweep --airfoil NAME [--airfoil NAME ...]
 ```powershell
 uv run autoblade sweep `
   --airfoil sc1095.csv --airfoil sd7032_sharp.csv `
-  --section section_params-1.csv --section section_params-2.csv `
+  --section blade_sections-1.csv --section blade_sections-2.csv `
   --dry-run
 ```
 
-预览先显示两个选择维度、组合数量、全部任务和现有输出冲突，再输出 schema version 1 的 JSON 清单。清单固定记录 `cartesian` 组合类型、选择范围、有序 `sweep-NNNN` 任务 ID、输入 basename、输出目录、输出名称及 `.CATPart`/`.stp` 路径；同一输入和输出根目录可得到逐字稳定的序列化结果。
+预览先显示两个选择维度、组合数量、全部任务和现有输出冲突，再输出 schema version 2 的 JSON 清单。清单使用 `blade_sections` 记录桨叶截面定义，并固定记录 `cartesian` 组合类型、选择范围、有序 `sweep-NNNN` 任务 ID、输入 basename、输出目录、输出名称及 `.CATPart`/`.stp` 路径；同一输入和输出根目录可得到逐字稳定的序列化结果。
 
 首版不支持 `zip`、目录自动全选、全局缩放、桨距或尖部形状等额外设计变量。需要逐行选择不同翼型时，应使用含 `airfoil` 列的自包含文件和 `create`/`batch`，不应加入 `sweep`。
 
@@ -175,7 +182,7 @@ uv run autoblade config migrate --apply
 
 `show` 查看配置来源、schema 和持久化值；`set` 需要同时提供 `--key` 与
 `--value`；`reset` 恢复内置默认值。可设置键为 `input_dir`、`output_dir`、
-`airfoil_dir`、`section_params_dir`、`author` 和 `output_name_template`。
+`airfoil_dir`、`blade_sections_dir`、`author` 和 `output_name_template`。
 
 `migrate` 默认只预览已知旧 schema 的字段变化；`--apply` 创建不覆盖已有文件的
 备份后原子迁移。未知字段、未来版本和预览后被其他进程修改的配置会安全失败。
@@ -200,7 +207,7 @@ Planner 完成后、CATIA 启动前，命令输出：
 以下入口分别与 `autoblade create`、`autoblade batch` 使用相同参数和退出码：
 
 ```powershell
-uv run autoblade-create --airfoil sc1095.csv --section section_params-1.csv
+uv run autoblade-create --airfoil sc1095.csv --section blade_sections-1.csv
 uv run autoblade-batch --airfoil sc1095.csv
 uv run autoblade-create --version
 uv run autoblade-batch --version

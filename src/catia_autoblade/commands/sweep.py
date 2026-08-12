@@ -35,14 +35,14 @@ def run_sweep_command(
     """规划显式笛卡尔积；dry-run 在共享 Executor 边界前直接返回。"""
     manager = config_manager or ConfigManager()
     config = manager.load_runtime()
-    airfoil_files, section_params_files = get_available_files(
+    airfoil_files, blade_sections_files = get_available_files(
         airfoil_dir=config.paths.airfoil_dir,
-        section_params_dir=config.paths.section_params_dir,
+        blade_sections_dir=config.paths.blade_sections_dir,
     )
     if not airfoil_files:
         raise ValueError("No airfoil files were found.")
-    if not section_params_files:
-        raise ValueError("No section parameter files were found.")
+    if not blade_sections_files:
+        raise ValueError("No blade section definition files were found.")
 
     selected_airfoils = list(airfoils or ())
     selected_sections = list(sections or ())
@@ -56,8 +56,8 @@ def run_sweep_command(
 
         eligible_sections = [
             name
-            for name in section_params_files
-            if inspect_section_mode(config.paths.section_params_dir / name)
+            for name in blade_sections_files
+            if inspect_section_mode(config.paths.blade_sections_dir / name)
             == "single"
         ]
         if not eligible_sections:
@@ -93,14 +93,14 @@ def run_sweep_command(
     )
     _validate_selected_files(
         selected_sections,
-        available=section_params_files,
-        label="Section parameter",
+        available=blade_sections_files,
+        label="Blade section definition",
     )
 
     planner = SweepPlanner(
         output_dir,
         airfoil_dir=config.paths.airfoil_dir,
-        section_params_dir=config.paths.section_params_dir,
+        blade_sections_dir=config.paths.blade_sections_dir,
         output_name_template=config.defaults.output_name_template,
         author=config.defaults.author,
     )
@@ -125,7 +125,7 @@ def run_sweep_command(
             typer.echo(
                 "[ERROR] Failed sweep combination for "
                 f"airfoil={result.job.airfoil_filename}, "
-                f"section={result.job.section_params_filename}: {result.error}",
+                f"section={result.job.blade_sections_filename}: {result.error}",
                 err=True,
             )
     typer.echo(

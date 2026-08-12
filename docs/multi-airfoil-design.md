@@ -4,13 +4,13 @@
 
 ## 目标与边界
 
-一份截面参数文件描述一片叶片。每个截面可以引用不同翼型，同一翼型在一片叶片内只解析一次、只创建一次 CATIA 基准几何。所有输入必须在启动 CATIA 前完成解析、引用解析和领域校验。
+一份桨叶截面定义文件描述一片叶片。每个截面可以引用不同翼型，同一翼型在一片叶片内只解析一次、只创建一次 CATIA 基准几何。所有输入必须在启动 CATIA 前完成解析、引用解析和领域校验。
 
 本里程碑不引入翼型目录递归搜索、远程资源、跨目录引用或通用翼型插值器。首版也不支持在同一叶片中混合尖后缘与钝后缘翼型。
 
 ## 路径和文件命名
 
-运行时只从 `ConfigManager` 解析后的 `paths.airfoil_dir` 和 `paths.section_params_dir` 读取输入，不以进程工作目录或源码目录作为隐式后备位置。
+运行时只从 `ConfigManager` 解析后的 `paths.airfoil_dir` 和 `paths.blade_sections_dir` 读取输入，不以进程工作目录或源码目录作为隐式后备位置。
 
 版本化样例遵循以下约定：
 
@@ -18,8 +18,8 @@
 input/
   airfoils/
     <airfoil-id>[_<variant>].csv
-  section_params/
-    section_params-<blade-id>.csv
+  blade_sections/
+    blade_sections-<blade-id>.csv
 ```
 
 - 文件名使用 ASCII 小写字母、数字、连字符和下划线，扩展名统一为 `.csv`。
@@ -35,7 +35,7 @@ input/
 input/airfoils/airfoil1_sharp.csv
 input/airfoils/airfoil2_sharp.csv
 input/airfoils/airfoil3_sharp.csv
-input/section_params/section_params-multi-airfoil.csv
+input/blade_sections/blade_sections-multi-airfoil.csv
 ```
 
 ## `airfoil` 字段契约
@@ -71,7 +71,7 @@ input/section_params/section_params-multi-airfoil.csv
 ## CLI、批处理与输出命名
 
 - `create` 应先确定截面文件模式。单翼型模式才需要选择或验证 `--airfoil`；多翼型模式不要求该参数，若显式提供则报告参数冲突，避免产生“覆盖某些行”的隐含语义。
-- 交互模式应先选择截面参数文件，仅在单翼型模式下继续询问翼型。
+- 交互模式应先选择桨叶截面定义文件，仅在单翼型模式下继续询问翼型。
 - `batch` 对每个截面文件只创建一个任务；所有六列模板统一绑定一个显式翼型，不执行隐式笛卡尔积。
 - `batch --airfoil` 只绑定六列模板，不改变同一批次内多翼型文件的逐行引用；仅选择多翼型文件时该参数属于冲突。
 - 批处理的任务数和日志必须基于展开后的实际运行计划，不能继续简单显示 `翼型数 × 参数文件数`。
@@ -105,7 +105,7 @@ input/section_params/section_params-multi-airfoil.csv
 | `AIRFOIL2_sharp.csv` | `airfoil2_sharp.csv` |
 | `AIRFOIL3_sharp.csv` | `airfoil3_sharp.csv` |
 | `AIRFOIL1_sharp_1000.csv` | `airfoil1_sharp_dense_1000.csv` |
-| `section_params.csv` | `section_params-multi-airfoil.csv` |
+| `blade_sections.csv` | `blade_sections-multi-airfoil.csv` |
 
 完成实现时至少验证：
 
@@ -120,7 +120,7 @@ input/section_params/section_params-multi-airfoil.csv
 2026-08-07 使用 CATIA P3 V5-6R2020 执行：
 
 ```powershell
-uv run autoblade create --section section_params-multi-airfoil.csv --keep-failed-part
+uv run autoblade create --section blade_sections-multi-airfoil.csv --keep-failed-part
 ```
 
 验证结果：

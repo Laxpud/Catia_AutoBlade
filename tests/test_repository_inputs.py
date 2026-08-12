@@ -11,9 +11,9 @@ from catia_autoblade.core.input_validation import (
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 AIRFOIL_DIR = PROJECT_ROOT / "input" / "airfoils"
-SECTION_PARAMS_DIR = PROJECT_ROOT / "input" / "section_params"
-MULTI_AIRFOIL_SAMPLE = SECTION_PARAMS_DIR / "section_params-multi-airfoil.csv"
-ZERO_TRANSLATION_SAMPLE = SECTION_PARAMS_DIR / "section_params-naca.csv"
+BLADE_SECTIONS_DIR = PROJECT_ROOT / "input" / "blade_sections"
+MULTI_AIRFOIL_SAMPLE = BLADE_SECTIONS_DIR / "blade_sections-multi-airfoil.csv"
+ZERO_TRANSLATION_SAMPLE = BLADE_SECTIONS_DIR / "blade_sections-naca.csv"
 CANONICAL_INPUT_NAME = re.compile(r"[a-z0-9][a-z0-9_-]*\.csv")
 EXPECTED_MULTI_AIRFOILS = (
     "airfoil1_sharp.csv",
@@ -21,14 +21,14 @@ EXPECTED_MULTI_AIRFOILS = (
     "airfoil3_sharp.csv",
 )
 BATCH_REGRESSION_FILES = tuple(
-    SECTION_PARAMS_DIR / f"section_params-{index}.csv"
+    BLADE_SECTIONS_DIR / f"blade_sections-{index}.csv"
     for index in range(1, 6)
 )
 
 
 def test_repository_input_filenames_are_portable_and_unambiguous() -> None:
     """版本化输入使用稳定的小写名称，避免 Windows 大小写别名。"""
-    for directory in (AIRFOIL_DIR, SECTION_PARAMS_DIR):
+    for directory in (AIRFOIL_DIR, BLADE_SECTIONS_DIR):
         csv_names = sorted(path.name for path in directory.glob("*.csv"))
 
         assert csv_names

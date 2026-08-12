@@ -10,7 +10,20 @@ from catia_autoblade.config.manager import (
 )
 
 
-CURRENT_CONFIG = """version = "2.0.0"
+CURRENT_CONFIG = """version = "3.0.0"
+
+[paths]
+input_dir = "input"
+output_dir = "output"
+airfoil_dir = "airfoils"
+blade_sections_dir = "blade_sections"
+
+[defaults]
+author = "Ada"
+output_name_template = "{blade}"
+"""
+
+PREVIOUS_CONFIG = """version = "2.0.0"
 
 [paths]
 input_dir = "input"
@@ -81,7 +94,7 @@ def test_config_discovery_priority_is_explicit_workspace_user_defaults(
     )
     assert manager.source.kind == "defaults"
     assert manager.config_file == (working_dir / "config.toml").resolve()
-    assert manager.load().version == "2.0.0"
+    assert manager.load().version == "3.0.0"
 
 
 def test_explicit_relative_config_is_anchored_to_invocation_directory(
@@ -109,8 +122,8 @@ def test_legacy_config_is_read_without_writing_and_paths_stay_stable(
         runtime = manager.load_runtime()
 
     assert runtime.paths.airfoil_dir == (tmp_path / "input" / "airfoils").resolve()
-    assert runtime.paths.section_params_dir == (
-        tmp_path / "input" / "section_params"
+    assert runtime.paths.blade_sections_dir == (
+        tmp_path / "input" / "blade_sections"
     ).resolve()
     assert runtime.defaults.output_name_template == "{airfoil}_blade-{idx}"
     assert config_file.read_bytes() == original
@@ -127,19 +140,41 @@ def test_legacy_config_migration_previews_backs_up_and_preserves_values(
     assert plan.source_version == "1.0.0"
     assert [change.field for change in plan.changes] == [
         "version",
-        "paths.airfoil_dir",
         "paths.section_params_dir",
+        "paths.airfoil_dir",
     ]
 
     backup = manager.apply_migration(plan)
 
     assert backup.read_text(encoding="utf-8") == LEGACY_CONFIG
     migrated_text = config_file.read_text(encoding="utf-8")
-    assert 'version = "2.0.0"' in migrated_text
+    assert 'version = "3.0.0"' in migrated_text
     assert 'airfoil_dir = "airfoils"' in migrated_text
-    assert 'section_params_dir = "section_params"' in migrated_text
+    assert 'blade_sections_dir = "blade_sections"' in migrated_text
+    assert "section_params_dir" not in migrated_text
     assert 'output_name_template = "{airfoil}_blade-{idx}"' in migrated_text
     assert manager.plan_migration() is None
+
+
+def test_schema_2_config_migrates_field_and_default_directory(
+    tmp_path: Path,
+) -> None:
+    config_file = _write(tmp_path / "config.toml", PREVIOUS_CONFIG)
+    manager = ConfigManager(config_file)
+    plan = manager.plan_migration()
+
+    assert plan is not None
+    assert plan.source_version == "2.0.0"
+    assert [change.field for change in plan.changes] == [
+        "version",
+        "paths.section_params_dir",
+    ]
+
+    manager.apply_migration(plan)
+    migrated_text = config_file.read_text(encoding="utf-8")
+    assert 'version = "3.0.0"' in migrated_text
+    assert 'blade_sections_dir = "blade_sections"' in migrated_text
+    assert "section_params_dir" not in migrated_text
 
 
 def test_legacy_config_cannot_be_silently_saved(tmp_path: Path) -> None:
@@ -166,7 +201,7 @@ def test_migration_rejects_file_changed_after_preview(tmp_path: Path) -> None:
 def test_future_and_unknown_schema_content_fail_safely(tmp_path: Path) -> None:
     future = _write(
         tmp_path / "future.toml",
-        CURRENT_CONFIG.replace('version = "2.0.0"', 'version = "3.0.0"'),
+        CURRENT_CONFIG.replace('version = "3.0.0"', 'version = "4.0.0"'),
     )
     with pytest.raises(ConfigCompatibilityError, match="newer than supported"):
         ConfigManager(future).load()
@@ -179,6 +214,22 @@ def test_future_and_unknown_schema_content_fail_safely(tmp_path: Path) -> None:
     with pytest.raises(ConfigCompatibilityError, match="Unknown configuration"):
         ConfigManager(unknown).load()
     assert unknown.read_bytes() == original
+
+
+def test_current_schema_reports_removed_section_params_field(
+    tmp_path: Path,
+) -> None:
+    old_field = CURRENT_CONFIG.replace(
+        'blade_sections_dir = "blade_sections"',
+        'section_params_dir = "section_params"',
+    )
+    config_file = _write(tmp_path / "removed-field.toml", old_field)
+
+    with pytest.raises(
+        ConfigCompatibilityError,
+        match="use paths.blade_sections_dir",
+    ):
+        ConfigManager(config_file).load()
 
 
 def test_deprecated_field_registry_reports_replacement(

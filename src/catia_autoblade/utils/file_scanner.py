@@ -5,7 +5,7 @@ def get_available_files(
     input_dir: str | Path | None = None,
     *,
     airfoil_dir: str | Path | None = None,
-    section_params_dir: str | Path | None = None,
+    blade_sections_dir: str | Path | None = None,
     config_manager=None,
 ) -> tuple[list[str], list[str]]:
     """扫描配置指定的两个输入目录并返回稳定排序的 CSV 文件名。
@@ -16,21 +16,21 @@ def get_available_files(
     if input_dir is not None:
         input_path = Path(input_dir)
         airfoil_dir = airfoil_dir or input_path / "airfoils"
-        section_params_dir = section_params_dir or input_path / "section_params"
+        blade_sections_dir = blade_sections_dir or input_path / "blade_sections"
 
-    if airfoil_dir is None or section_params_dir is None:
+    if airfoil_dir is None or blade_sections_dir is None:
         if config_manager is None:
             from ..config.manager import ConfigManager
 
             config_manager = ConfigManager()
         runtime_config = config_manager.load_runtime()
         airfoil_dir = airfoil_dir or runtime_config.paths.airfoil_dir
-        section_params_dir = (
-            section_params_dir or runtime_config.paths.section_params_dir
+        blade_sections_dir = (
+            blade_sections_dir or runtime_config.paths.blade_sections_dir
         )
 
     return _csv_filenames(Path(airfoil_dir)), _csv_filenames(
-        Path(section_params_dir)
+        Path(blade_sections_dir)
     )
 
 

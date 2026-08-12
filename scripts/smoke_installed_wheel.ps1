@@ -22,6 +22,7 @@ $smokeRoot = Join-Path $projectRoot (
 )
 $venvDir = Join-Path $smokeRoot "venv"
 $workspaceDir = Join-Path $smokeRoot "workspace"
+$libraryWorkspaceDir = Join-Path $smokeRoot "library-workspace"
 $pythonExe = Join-Path $venvDir "Scripts\python.exe"
 $autobladeExe = Join-Path $venvDir "Scripts\autoblade.exe"
 $createExe = Join-Path $venvDir "Scripts\autoblade-create.exe"
@@ -71,6 +72,9 @@ try {
     Invoke-SmokeStep -Name "Initialize external workspace" -Action {
         & $autobladeExe init $workspaceDir --with-examples
     }
+    Invoke-SmokeStep -Name "Initialize audited airfoil library workspace" -Action {
+        & $autobladeExe init $libraryWorkspaceDir --with-airfoil-library
+    }
     $workspaceConfig = Join-Path $workspaceDir "config.toml"
     Invoke-SmokeStep -Name "Discover initialized inputs" -Action {
         & $autobladeExe --config $workspaceConfig list
@@ -80,7 +84,9 @@ try {
     }
     Invoke-SmokeStep -Name "Run installed input preflight and mock build" -Action {
         & $pythonExe (Join-Path $PSScriptRoot "installed_wheel_smoke.py") `
-            --workspace $workspaceDir --repository-root $projectRoot
+            --workspace $workspaceDir `
+            --library-workspace $libraryWorkspaceDir `
+            --repository-root $projectRoot
     }
 }
 finally {

@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 
 import pytest
 
@@ -22,7 +23,7 @@ def test_init_creates_external_workspace_with_optional_examples(
 
     assert plan.target == target.resolve()
     assert (target / "input" / "airfoils").is_dir()
-    assert (target / "input" / "section_params").is_dir()
+    assert (target / "input" / "blade_sections").is_dir()
     assert (target / "output").is_dir()
     expected_airfoils = [
         "airfoil1_sharp.csv",
@@ -35,8 +36,8 @@ def test_init_creates_external_workspace_with_optional_examples(
     section_path = (
         target
         / "input"
-        / "section_params"
-        / "example-section-params.csv"
+        / "blade_sections"
+        / "example-blade-sections.csv"
     )
     assert section_path.is_file()
     input_plan = build_blade_input_plan(
@@ -49,7 +50,7 @@ def test_init_creates_external_workspace_with_optional_examples(
     assert [airfoil.filename for airfoil in input_plan.airfoils] == (
         expected_airfoils
     )
-    assert ConfigManager(target / "config.toml").load().version == "2.0.0"
+    assert ConfigManager(target / "config.toml").load().version == "3.0.0"
 
 
 def test_init_without_examples_only_creates_config_and_directories(
@@ -66,7 +67,39 @@ def test_init_without_examples_only_creates_config_and_directories(
 
     assert (target / "config.toml").is_file()
     assert list((target / "input" / "airfoils").iterdir()) == []
-    assert list((target / "input" / "section_params").iterdir()) == []
+    assert list((target / "input" / "blade_sections").iterdir()) == []
+
+
+def test_init_with_airfoil_library_copies_manifest_and_all_audited_airfoils(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "blade-workspace"
+
+    initialize.run_init_command(
+        target,
+        with_examples=False,
+        with_airfoil_library=True,
+        force=False,
+        interactive=False,
+    )
+
+    airfoil_dir = target / "input" / "airfoils"
+    manifest = json.loads(
+        (airfoil_dir / "manifest.json").read_text(encoding="utf-8")
+    )
+    expected_airfoils = [
+        "airfoil1_sharp.csv",
+        "airfoil2_sharp.csv",
+        "airfoil3_sharp.csv",
+    ]
+    assert manifest["schema_version"] == 1
+    assert [record["filename"] for record in manifest["airfoils"]] == (
+        expected_airfoils
+    )
+    assert sorted(path.name for path in airfoil_dir.glob("*.csv")) == (
+        expected_airfoils
+    )
+    assert list((target / "input" / "blade_sections").iterdir()) == []
 
 
 def test_repeated_init_preserves_existing_managed_and_unrelated_files(
@@ -76,6 +109,7 @@ def test_repeated_init_preserves_existing_managed_and_unrelated_files(
     initialize.run_init_command(
         target,
         with_examples=True,
+        with_airfoil_library=True,
         force=False,
         interactive=False,
     )
@@ -88,6 +122,7 @@ def test_repeated_init_preserves_existing_managed_and_unrelated_files(
         initialize.run_init_command(
             target,
             with_examples=True,
+            with_airfoil_library=True,
             force=False,
             interactive=False,
         )
@@ -98,10 +133,12 @@ def test_repeated_init_preserves_existing_managed_and_unrelated_files(
     initialize.run_init_command(
         target,
         with_examples=True,
+        with_airfoil_library=True,
         force=True,
         interactive=False,
     )
-    assert "version = \"2.0.0\"" in config_file.read_text(encoding="utf-8")
+    assert "version = \"3.0.0\"" in config_file.read_text(encoding="utf-8")
+    assert (target / "input" / "airfoils" / "manifest.json").is_file()
     assert unrelated.read_text(encoding="utf-8") == "private"
 
 

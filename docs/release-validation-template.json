@@ -10,7 +10,7 @@
     "python": "CPython 3.14.x x64",
     "pywin32": "311",
     "catia": "CATIA P3 V5-6R2020",
-    "input_model": "section_params-multi-airfoil.csv",
+    "input_model": "blade_sections-multi-airfoil.csv",
     "catpart_result": "pass: <path or artifact id>",
     "step_result": "pass: closed solid BREP",
     "feature_tree": "pass: <observations>",

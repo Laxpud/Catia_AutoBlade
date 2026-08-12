@@ -87,7 +87,7 @@ def read_airfoil_csv(csv_path: str | Path) -> list[tuple[float, float, float]]:
 
 
 def read_section_parameters(csv_path: str | Path) -> list[SectionParameters]:
-    """校验截面参数 CSV，并返回建模使用的标准字段。"""
+    """校验桨叶截面定义 CSV，并返回建模使用的标准字段。"""
     table = read_section_parameter_table(csv_path)
     return [dict(section) for section in table.sections]
 
@@ -167,7 +167,7 @@ def read_section_parameter_table(csv_path: str | Path) -> SectionParameterTable:
     except (OSError, UnicodeError, csv.Error) as error:
         raise InputValidationError(
             path,
-            f"cannot read section parameter CSV: {error}",
+            f"cannot read blade section definition CSV: {error}",
         ) from error
 
     if len(sections) < 2:

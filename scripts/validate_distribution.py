@@ -25,12 +25,13 @@ EXPECTED_PROJECT_NAME = "catia-autoblade"
 EXPECTED_REQUIRES_PYTHON = ">=3.14,<3.15"
 REQUIRED_WHEEL_FILES = {
     "catia_autoblade/resources/workspace/config.toml",
-    "catia_autoblade/resources/workspace/airfoils/airfoil1_sharp.csv",
-    "catia_autoblade/resources/workspace/airfoils/airfoil2_sharp.csv",
-    "catia_autoblade/resources/workspace/airfoils/airfoil3_sharp.csv",
+    "catia_autoblade/resources/airfoil_library/manifest.json",
+    "catia_autoblade/resources/airfoil_library/airfoil1_sharp.csv",
+    "catia_autoblade/resources/airfoil_library/airfoil2_sharp.csv",
+    "catia_autoblade/resources/airfoil_library/airfoil3_sharp.csv",
     (
-        "catia_autoblade/resources/workspace/section_params/"
-        "example-section-params.csv"
+        "catia_autoblade/resources/workspace/blade_sections/"
+        "example-blade-sections.csv"
     ),
 }
 REQUIRED_SDIST_PATHS = {

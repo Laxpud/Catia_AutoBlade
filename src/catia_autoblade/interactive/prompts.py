@@ -46,7 +46,7 @@ def select_sections(files: list[str], multi: bool = False) -> list[str]:
             )
         )
         if not selected:
-            raise PromptCancelled("No section parameter files were selected.")
+            raise PromptCancelled("No blade section definition files were selected.")
         return selected
     return [
         _ask(

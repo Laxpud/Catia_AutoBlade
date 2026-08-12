@@ -32,15 +32,15 @@ class BladeInputPlan:
     """进入 CATIA 前已经闭合所有文件引用的叶片运行计划。"""
 
     mode: BladeMode
-    section_params_path: Path
+    blade_sections_path: Path
     sections: tuple[SectionParameters, ...]
     airfoils: tuple[AirfoilInput, ...]
     is_sharp: bool
 
 
-def inspect_section_mode(section_params_path: str | Path) -> BladeMode:
+def inspect_section_mode(blade_sections_path: str | Path) -> BladeMode:
     """只读取表头以供 CLI 规划交互和输出名称。"""
-    path = Path(section_params_path)
+    path = Path(blade_sections_path)
     try:
         with path.open("r", encoding="utf-8-sig", newline="") as file:
             reader = csv.reader(file)
@@ -48,7 +48,7 @@ def inspect_section_mode(section_params_path: str | Path) -> BladeMode:
     except (OSError, UnicodeError, csv.Error) as error:
         raise InputValidationError(
             path,
-            f"cannot inspect section parameter CSV: {error}",
+            f"cannot inspect blade section definition CSV: {error}",
         ) from error
 
     if header is None:
@@ -57,7 +57,7 @@ def inspect_section_mode(section_params_path: str | Path) -> BladeMode:
 
 
 def build_blade_input_plan(
-    section_params_path: str | Path,
+    blade_sections_path: str | Path,
     airfoil_dir: str | Path,
     fallback_airfoil_filename: str | None,
     *,
@@ -67,7 +67,7 @@ def build_blade_input_plan(
     ] = read_airfoil_csv,
 ) -> BladeInputPlan:
     """解析截面和唯一翼型，并保证所有错误都发生在 COM 初始化前。"""
-    section_path = Path(section_params_path)
+    section_path = Path(blade_sections_path)
     table = read_section_parameter_table(section_path)
     mode: BladeMode = "multi" if table.has_airfoil_column else "single"
 
@@ -80,7 +80,7 @@ def build_blade_input_plan(
     if mode == "single" and fallback_airfoil_filename is None:
         raise InputValidationError(
             section_path,
-            "single-airfoil section parameters require an airfoil filename",
+            "single-airfoil blade section definitions require an airfoil filename",
             field="airfoil",
         )
 
@@ -141,7 +141,7 @@ def build_blade_input_plan(
 
     return BladeInputPlan(
         mode=mode,
-        section_params_path=section_path.resolve(),
+        blade_sections_path=section_path.resolve(),
         sections=tuple(sections),
         airfoils=tuple(airfoils),
         is_sharp=expected_is_sharp,

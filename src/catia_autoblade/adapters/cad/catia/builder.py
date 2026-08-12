@@ -282,7 +282,7 @@ def create_blade_geometry(
     part,
     airfoil_geometries: dict[str, AirfoilGeometry],
     is_sharp,
-    section_params,
+    blade_sections,
 ):
     try:
         hybrid_bodies = part.HybridBodies
@@ -310,7 +310,7 @@ def create_blade_geometry(
         te_lower_points = []
         section_splines = []
 
-        for section in section_params:
+        for section in blade_sections:
             airfoil_filename = str(section["airfoil_filename"])
             airfoil_geometry = airfoil_geometries[airfoil_filename]
             airfoil_ref = part.CreateReferenceFromObject(
@@ -508,12 +508,12 @@ def hide_all_except_blade_solid(
 
 def create_single_blade(
     airfoil_filename,
-    section_params_filename,
+    blade_sections_filename,
     output_dir=None,
     output_name=None,
     *,
     airfoil_dir=None,
-    section_params_dir=None,
+    blade_sections_dir=None,
     output_name_template=None,
     keep_failed_part=False,
     session_factory=None,
@@ -523,7 +523,7 @@ def create_single_blade(
     runtime_config = None
     needs_runtime_config = (
         airfoil_dir is None
-        or section_params_dir is None
+        or blade_sections_dir is None
         or output_dir is None
         or (output_name is None and output_name_template is None)
     )
@@ -532,16 +532,16 @@ def create_single_blade(
 
     if airfoil_dir is None:
         airfoil_dir = runtime_config.paths.airfoil_dir
-    if section_params_dir is None:
-        section_params_dir = runtime_config.paths.section_params_dir
+    if blade_sections_dir is None:
+        blade_sections_dir = runtime_config.paths.blade_sections_dir
     if output_dir is None:
         output_dir = runtime_config.paths.output_dir
     # 输入必须在 COM 初始化前完成解析和领域校验。这样缺列、非法数字、
     # 点序、截面数量或跨文件引用错误不会启动昂贵且需要清理的 CATIA 进程。
     if input_plan is None:
-        section_params_path = Path(section_params_dir) / section_params_filename
+        blade_sections_path = Path(blade_sections_dir) / blade_sections_filename
         input_plan = build_blade_input_plan(
-            section_params_path,
+            blade_sections_path,
             airfoil_dir,
             airfoil_filename,
             airfoil_reader=read_airfoil_csv,
@@ -555,7 +555,7 @@ def create_single_blade(
         output_name = build_output_name(
             template,
             airfoil_filename,
-            section_params_filename,
+            blade_sections_filename,
             author=author,
             is_multi_airfoil=input_plan.mode == "multi",
         )
@@ -696,7 +696,7 @@ def _build_and_save_blade(
 
 
 def main():
-    create_single_blade("sc1095.csv", "section_params-1.csv")
+    create_single_blade("sc1095.csv", "blade_sections-1.csv")
 
 
 if __name__ == "__main__":

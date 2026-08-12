@@ -76,8 +76,8 @@ def collect_doctor_checks(manager: ConfigManager) -> list[DoctorCheck]:
         checks.append(_check_directory("airfoil_dir", config.paths.airfoil_dir))
         checks.append(
             _check_directory(
-                "section_params_dir",
-                config.paths.section_params_dir,
+                "blade_sections_dir",
+                config.paths.blade_sections_dir,
             )
         )
         checks.append(_check_output_writable(config.paths.output_dir))

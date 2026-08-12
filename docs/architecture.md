@@ -36,8 +36,8 @@ Typer CLI
 - `catia_autoblade.core.create_blade` 与 `core.catia_session`：仅保留旧 Python 导入路径的延迟兼容转发，不包含 COM 实现。
 - `catia_autoblade.core.batch`：保留 Python 批处理入口，并转发到统一 Planner 与 Executor。
 - `catia_autoblade.config`：配置模型、TOML 持久化及运行时绝对路径解析。
-- `catia_autoblade.resources`：wheel 内不可变的工作区配置、真实多翼型示例及其
-  依赖翼型；只能由 `autoblade init` 复制到包外目标。
+- `catia_autoblade.resources`：wheel 内不可变的工作区配置、真实多翼型示例和
+  独立内置翼型目录；只能由 `autoblade init` 按显式选项复制到包外目标。
 - `catia_autoblade.commands.initialize`：完整预览、冲突授权和原子复制，不删除
   目标中的其他用户文件。
 - `catia_autoblade.commands.doctor`：Windows/Python/COM/注册表/配置/目录诊断；
@@ -78,7 +78,7 @@ CATIA Builder 在输入计划完成后才延迟加载会话实现。因此仅导
 
 ## 批处理模型
 
-批处理先检查每个截面文件的模式。所有选中的六列模板统一绑定一个显式翼型，每个模板生成一个任务；包含 `airfoil` 列的自包含文件也各生成一个任务。目录中的其他翼型不会扩大任务数，多个翼型参与组合只属于显式 `sweep`。单翼型结果按翼型名称分目录，多翼型结果按截面参数文件 stem 分目录；两种模式共享 `defaults.output_name_template`。
+批处理先检查每个截面文件的模式。所有选中的六列模板统一绑定一个显式翼型，每个模板生成一个任务；包含 `airfoil` 列的自包含文件也各生成一个任务。目录中的其他翼型不会扩大任务数，多个翼型参与组合只属于显式 `sweep`。单翼型结果按翼型名称分目录，多翼型结果按桨叶截面定义文件 stem 分目录；两种模式共享 `defaults.output_name_template`。
 
 当前没有共享 CATIA 会话、失败重试、事务式输出或断点续跑。某一任务失败会先释放其独立 CATIA 会话、记录结构化失败结果，然后继续处理其他任务；只要存在失败，批处理进程最终返回 1。
 
@@ -86,7 +86,7 @@ CATIA Builder 在输入计划完成后才延迟加载会话实现。因此仅导
 
 `SweepPlanner` 接收显式翼型列表和显式六列模板列表，分别去重排序后按 airfoil-major 顺序展开 Cartesian product。每个组合复用单任务 Planner 完成输入闭合和输出命名，随后统一检查计划内部的目标冲突；自包含七列定义在展开前被拒绝。目录扫描只用于验证候选 basename，未选择文件不会扩展任务数。
 
-`SweepPlan` 持有选择范围和有序 `BladeBuildJob`，并以 schema version 1 序列化为 JSON。清单记录组合类型、任务 ID、输入 basename、输出目录、输出名称和两个输出文件，可供 dry-run、黄金任务列表和未来调度使用。`--dry-run` 在 Executor 前返回，因此不会加载或启动 CATIA；实际执行仍使用共享 Executor，CATIA Builder 不包含组合逻辑。
+`SweepPlan` 持有选择范围和有序 `BladeBuildJob`，并以 schema version 2 序列化为 JSON。清单使用 `blade_sections` 记录桨叶截面定义，另记录组合类型、任务 ID、输入 basename、输出目录、输出名称和两个输出文件，可供 dry-run、黄金任务列表和未来调度使用。`--dry-run` 在 Executor 前返回，因此不会加载或启动 CATIA；实际执行仍使用共享 Executor，CATIA Builder 不包含组合逻辑。
 
 命令和模型输入的稳定职责见[设计原则](design-principles.md)，参数及退出码见 [CLI 参考](cli.md)。
 
@@ -95,6 +95,11 @@ CATIA Builder 在输入计划完成后才延迟加载会话实现。因此仅导
 安装包和用户数据采用单向复制边界：wheel 内只保存版本控制的不可变模板，
 `autoblade init` 将其复制到显式、位于 `site-packages` 外的工作区。运行时只读
 用户工作区；包安装器升级或卸载时不会拥有配置、输入、输出或模型文件。
+
+真实示例的截面入口保存在 `resources/workspace`，其依赖翼型来自独立的
+`resources/airfoil_library`。目录 JSON 清单固定来源授权、修改、点数和 SHA-256；
+初始化器在计划阶段验证清单与资源摘要。`--with-examples` 选择入口及依赖，
+`--with-airfoil-library` 选择清单内全集，二者不会扫描或整体复制源码 `input/`。
 
 主 CLI 按显式路径、当前工作区、用户级配置和内置默认值发现一次配置，并把同一
 `ConfigManager` 传给子命令。配置相对路径始终由选中配置文件的位置决定，不随

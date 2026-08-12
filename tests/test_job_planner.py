@@ -30,7 +30,7 @@ def _inputs(tmp_path: Path, section_count: int = 1):
         (airfoil_dir / filename).write_text(SHARP_AIRFOIL, encoding="utf-8")
     section_files = []
     for index in range(1, section_count + 1):
-        filename = f"section_params-{index}.csv"
+        filename = f"blade_sections-{index}.csv"
         (section_dir / filename).write_text(SECTIONS, encoding="utf-8")
         section_files.append(filename)
     return airfoil_dir, section_dir, section_files
@@ -44,7 +44,7 @@ def test_create_planner_returns_one_closed_job(tmp_path: Path) -> None:
         section_files[0],
         tmp_path / "output",
         airfoil_dir=airfoil_dir,
-        section_params_dir=section_dir,
+        blade_sections_dir=section_dir,
         output_name_template="{blade}",
         author="",
     )
@@ -65,13 +65,13 @@ def test_batch_binds_one_airfoil_to_five_templates_without_product(
         reversed(section_files),
         tmp_path / "output",
         airfoil_dir=airfoil_dir,
-        section_params_dir=section_dir,
+        blade_sections_dir=section_dir,
         output_name_template="{blade}",
         author="",
     )
 
     assert len(jobs) == 5
-    assert [job.section_params_filename for job in jobs] == section_files
+    assert [job.blade_sections_filename for job in jobs] == section_files
     assert {job.airfoil_filename for job in jobs} == {"foil-a.csv"}
 
 
@@ -84,7 +84,7 @@ def test_batch_requires_airfoil_for_six_column_template(tmp_path: Path) -> None:
             section_files,
             tmp_path / "output",
             airfoil_dir=airfoil_dir,
-            section_params_dir=section_dir,
+            blade_sections_dir=section_dir,
             output_name_template="{blade}",
             author="",
         )
@@ -97,7 +97,7 @@ def test_executor_continues_after_one_job_failure(tmp_path: Path) -> None:
         section_files,
         tmp_path / "output",
         airfoil_dir=airfoil_dir,
-        section_params_dir=section_dir,
+        blade_sections_dir=section_dir,
         output_name_template="{blade}",
         author="",
     )
@@ -123,7 +123,7 @@ def test_batch_planner_rejects_duplicate_output_targets(tmp_path: Path) -> None:
             section_files,
             tmp_path / "output",
             airfoil_dir=airfoil_dir,
-            section_params_dir=section_dir,
+            blade_sections_dir=section_dir,
             output_name_template="same-name",
             author="",
         )

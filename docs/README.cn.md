@@ -1,8 +1,8 @@
-# CATIA AutoBlade
+# AutoBlade
 
 [English](../README.md) | [简体中文](README.cn.md)
 
-CATIA AutoBlade 是一个 Windows 命令行工具，用于根据翼型点云和沿展向的截面参数，在 CATIA V5 中创建三维叶片模型。程序通过 CATIA COM 自动化接口完成建模，并同时导出原生 `CATPart` 文件和 STEP 模型。
+AutoBlade 是一个 Python 命令行工具，当前建模后端用于根据翼型点云和沿展向的截面参数，在 CATIA V5 中创建三维叶片模型。程序在 Windows 上通过 CATIA COM 自动化接口完成建模，并同时导出原生 `CATPart` 文件和 STEP 模型。
 
 ## 当前状态
 
@@ -14,7 +14,7 @@ CATIA AutoBlade 是一个 Windows 命令行工具，用于根据翼型点云和�
 
 ## 功能范围
 
-CATIA AutoBlade 当前提供：
+AutoBlade 当前提供：
 
 - 根据 CSV 点云创建翼型样条；
 - 按截面选择翼型并复用唯一基准几何；
@@ -37,6 +37,10 @@ CATIA AutoBlade 当前提供：
 
 这是当前唯一经过验证的预览支持基线。其他 Windows、Python、`pywin32`、处理器架构和 CATIA 组合均属于未验证范围，不会被默认视为受支持。CATIA 本体、许可证和 COM 注册环境是外部前置条件，不包含在本项目中。证据与渠道边界见[分发范围与支持策略](distribution-scope.md)。
 
+同一 wheel 还会在 Linux + CPython 3.14 上验证安装、包与核心导入、CLI
+help/version、Parser、Planner 和 mock 执行。这不表示已经提供 Linux 建模后端；
+当前受支持的建模执行路径仍是 CATIA。
+
 可在 Windows 上通过 WinGet 安装 `uv`：
 
 ```powershell
@@ -49,10 +53,16 @@ winget install --id=astral-sh.uv -e
 
 ```powershell
 uv venv .venv --python 3.14
-uv pip install --python .venv\Scripts\python.exe .\catia_autoblade-0.2.0-py3-none-any.whl
+$wheel = (Resolve-Path .\autoblade-*-py3-none-any.whl).Path
+uv pip install --python .venv\Scripts\python.exe $wheel
 .\.venv\Scripts\Activate.ps1
+autoblade --version
 autoblade init C:\Engineering\blade-workspace --with-examples
 ```
+
+版本输出应以 `autoblade` 开头。本次 breaking namespace 迁移不提供
+`catia_autoblade` shim；升级已有环境时，必须先卸载旧 `catia-autoblade`
+distribution 再安装新 wheel。如果两者共存，AutoBlade 会拒绝运行。
 
 `--with-examples` 会把已验证的 89 截面多翼型真实桨叶示例及其引用的三个翼型复制到外部工作区。
 使用 `--with-airfoil-library` 可以只复制完整的已审计内置翼型目录及其清单，不复制桨叶截面示例。当前目录包含三个已获得作者直接再分发授权的 Hannnk 翼型；详见[数据审计](example-data-audit.md)。
@@ -141,7 +151,14 @@ uv run autoblade sweep --airfoil sc1095.csv --airfoil sd7032_sharp.csv `
 pwsh -File scripts/check.ps1
 ```
 
-该统一入口执行 pytest、Ruff、wheel/sdist 构建和分发元数据校验；单项诊断及版本标签检查见[自动化测试](testing.md)。
+Linux 使用对应的仓库与非 editable wheel 检查：
+
+```bash
+bash scripts/check-linux.sh
+```
+
+两个入口都会执行 pytest、Ruff、wheel/sdist 构建、全新环境 wheel 冒烟和分发
+元数据校验；单项诊断及版本标签检查见[自动化测试](testing.md)。
 
 ## 许可证
 

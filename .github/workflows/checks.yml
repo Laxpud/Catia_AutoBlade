@@ -8,6 +8,22 @@ permissions:
   contents: read
 
 jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          python-version: "3.14"
+          enable-cache: true
+
+      - name: Run Linux repository and wheel checks
+        shell: bash
+        run: bash ./scripts/check-linux.sh
+
   windows:
     runs-on: windows-latest
     steps:

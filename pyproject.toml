@@ -1,14 +1,14 @@
 [project]
-name = "catia-autoblade"
+name = "autoblade"
 dynamic = ["version"]
-description = "CATIA automation tool for creating blades"
+description = "AutoBlade command-line tool for creating blade models with CATIA"
 readme = "README.md"
 requires-python = ">=3.14,<3.15"
 license = { file = "LICENSE" }
 authors = [
     { name = "Laxpud", email = "mi.shore@foxmail.com" }
 ]
-keywords = ["catia", "automation", "blade", "cad"]
+keywords = ["autoblade", "catia", "automation", "blade", "cad"]
 
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -16,6 +16,7 @@ classifiers = [
     "Programming Language :: Python :: 3 :: Only",
     "Programming Language :: Python :: 3.14",
     "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
     "Topic :: Scientific/Engineering",
 ]
 
@@ -34,9 +35,9 @@ dev = [
 ]
 
 [project.scripts]
-autoblade = "catia_autoblade.cli:app"
-autoblade-create = "catia_autoblade.cli:create_entrypoint"
-autoblade-batch = "catia_autoblade.cli:batch_entrypoint"
+autoblade = "autoblade.cli:app"
+autoblade-create = "autoblade.cli:create_entrypoint"
+autoblade-batch = "autoblade.cli:batch_entrypoint"
 
 [project.urls]
 Homepage = "https://github.com/Laxpud/catia-autoblade"
@@ -49,7 +50,7 @@ requires = ["hatchling>=1.27,<2"]
 build-backend = "hatchling.build"
 
 [tool.hatch.version]
-path = "src/catia_autoblade/__init__.py"
+path = "src/autoblade/__init__.py"
 
 [tool.hatch.build]
 exclude = [
@@ -69,12 +70,13 @@ exclude = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/catia_autoblade"]
+packages = ["src/autoblade"]
 
 [tool.hatch.build.targets.sdist]
 include = [
     "/.github/workflows/checks.yml",
     "/AGENTS.md",
+    "/CONTEXT.md",
     "/LICENSE",
     "/README.md",
     "/TODO.md",

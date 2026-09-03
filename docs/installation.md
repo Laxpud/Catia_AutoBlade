@@ -21,10 +21,15 @@ EXE、未经验证的 Python/CATIA 组合都不是当前安装渠道；支持基
 
 ```powershell
 uv venv .venv --python 3.14
-uv pip install --python .venv\Scripts\python.exe .\catia_autoblade-0.2.0-py3-none-any.whl
+$wheel = (Resolve-Path .\autoblade-*-py3-none-any.whl).Path
+uv pip install --python .venv\Scripts\python.exe $wheel
 .\.venv\Scripts\Activate.ps1
 autoblade --version
 ```
+
+从旧产品身份升级时应优先创建全新虚拟环境；复用环境前必须先卸载
+`catia-autoblade`。新 wheel 不提供 `catia_autoblade` shim，并会在检测到两个
+distribution 共存时要求先卸载旧包，避免同名 console script 指向混合代码。
 
 wheel 安装到虚拟环境，用户工作区必须位于 `site-packages` 之外。初始化器只在
 显式目标中创建受管理文件：
@@ -72,8 +77,13 @@ pwsh -File scripts/check.ps1
 
 1. 顶层 `--config PATH`；
 2. 启动目录中的 `config.toml`；
-3. 用户级 `%APPDATA%\catia-autoblade\config.toml`；
-4. 以内置默认值运行，路径基准为启动目录但不自动创建配置文件。
+3. 用户级 `%APPDATA%\autoblade\config.toml`；
+4. 仅当新路径不存在时读取旧 `%APPDATA%\catia-autoblade\config.toml` 并警告；
+5. 以内置默认值运行，路径基准为启动目录但不自动创建配置文件。
+
+Linux 的对应路径为 `$XDG_CONFIG_HOME/autoblade/config.toml` 与旧
+`catia-autoblade/config.toml`；未设置 XDG 时以 `~/.config` 为根。两个用户目录
+同时存在时只使用新目录。
 
 显式相对配置路径按启动目录解析。选择后，所有子命令和交互菜单复用同一个
 `ConfigManager`，不会因后续切换目录重新发现另一个工作区。完整路径语义见
@@ -97,10 +107,15 @@ schema `1.0.0` 或 `2.0.0` 时，配置会改为 `blade_sections_dir`，但工�
 外部数据；还必须按[命名迁移记录](blade-sections-migration.md)将旧默认目录和标准
 CSV basename 显式改名。
 
+如果当前没有工作区配置且程序回退读取旧用户目录，直接运行 `autoblade config
+migrate` 可同时预览配置位置；`--apply` 会把活动配置写入新目录、保留旧文件备份，
+并保持相对 input/output 根的实际解析位置不变。回滚时先移走新目录中的
+`config.toml`，再把旧目录的 `.bak` 复制回 `config.toml`。
+
 ## 卸载与回滚
 
 ```powershell
-uv pip uninstall --python .venv\Scripts\python.exe catia-autoblade
+uv pip uninstall --python .venv\Scripts\python.exe autoblade
 ```
 
 卸载包或删除虚拟环境不会删除外部工作区。版本回滚时安装上一份已批准 wheel；
@@ -111,6 +126,7 @@ uv pip uninstall --python .venv\Scripts\python.exe catia-autoblade
 
 | 现象 | 处理 |
 | --- | --- |
+| 报告旧 `catia-autoblade` distribution 共存 | 先卸载旧包，再重新安装批准的 `autoblade` wheel |
 | `doctor` 报 Python 或 pywin32 不匹配 | 重新创建 CPython 3.14 x64 环境并安装批准 wheel |
 | CATIA 注册失败 | 修复 CATIA 安装/COM 注册；不要通过连接用户会话绕过检查 |
 | 找不到输入目录 | 核对 `--config` 来源及配置文件相对路径基准 |

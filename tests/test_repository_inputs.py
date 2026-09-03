@@ -2,8 +2,8 @@ import csv
 import re
 from pathlib import Path
 
-from catia_autoblade.core.input_plan import build_blade_input_plan
-from catia_autoblade.core.input_validation import (
+from autoblade.core.input_plan import build_blade_input_plan
+from autoblade.core.input_validation import (
     read_airfoil_csv,
     read_section_parameters,
 )

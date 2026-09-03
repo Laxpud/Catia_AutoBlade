@@ -3,12 +3,12 @@ from unittest.mock import Mock
 
 import pytest
 
-from catia_autoblade.adapters.cad.catia.builder import (
+from autoblade.adapters.cad.catia.builder import (
     meters_to_catia_mm,
     point_m_to_catia_mm,
     transform_airfoil_section,
 )
-from catia_autoblade.core.geometry import (
+from autoblade.core.geometry import (
     section_scale_factor,
     transform_point,
 )

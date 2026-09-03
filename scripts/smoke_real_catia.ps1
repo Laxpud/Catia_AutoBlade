@@ -23,12 +23,12 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 $sourceVersion = (& $UvExecutable run --frozen python -c `
-    "from catia_autoblade import __version__; print(__version__)"
+    "from autoblade import __version__; print(__version__)"
 ).Trim()
 if (-not $WheelPath) {
     $wheelCandidates = @(
         Get-ChildItem -Path (Join-Path $projectRoot "dist") `
-            -Filter "catia_autoblade-$sourceVersion-*.whl"
+            -Filter "autoblade-$sourceVersion-*.whl"
     )
     if ($wheelCandidates.Count -ne 1) {
         throw "Expected exactly one candidate wheel for $sourceVersion."

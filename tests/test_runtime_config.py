@@ -2,14 +2,14 @@ from pathlib import Path
 
 import pytest
 
-from catia_autoblade.commands.batch import BatchBuildError, run_batch_command
-from catia_autoblade.commands.create import run_create_command
-from catia_autoblade.config.manager import ConfigManager
-from catia_autoblade.core.jobs import BuildResult
-from catia_autoblade.core.input_validation import InputValidationError
-from catia_autoblade.interactive.prompts import PromptCancelled
-from catia_autoblade.utils.file_scanner import get_available_files
-from catia_autoblade.utils.output_naming import build_output_name
+from autoblade.commands.batch import BatchBuildError, run_batch_command
+from autoblade.commands.create import run_create_command
+from autoblade.config.manager import ConfigManager
+from autoblade.core.jobs import BuildResult
+from autoblade.core.input_validation import InputValidationError
+from autoblade.interactive.prompts import PromptCancelled
+from autoblade.utils.file_scanner import get_available_files
+from autoblade.utils.output_naming import build_output_name
 
 
 VALID_SECTIONS = """idx,scale/m,translate_x/m,translate_y/m,translate_z/m,rotate/deg
@@ -288,7 +288,7 @@ def test_interactive_create_cancels_before_executor(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from catia_autoblade.interactive import prompts
+    from autoblade.interactive import prompts
 
     config_dir = tmp_path / "project"
     manager = _write_config(config_dir)
@@ -386,7 +386,7 @@ def test_batch_core_applies_template_to_each_output(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from catia_autoblade.core import batch as batch_module
+    from autoblade.core import batch as batch_module
 
     calls = []
 
@@ -425,7 +425,7 @@ def test_batch_core_creates_multi_airfoil_section_file_only_once(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from catia_autoblade.core import batch as batch_module
+    from autoblade.core import batch as batch_module
 
     section_dir = tmp_path / "sections"
     section_dir.mkdir()
@@ -467,7 +467,7 @@ def test_batch_core_creates_multi_airfoil_section_file_only_once(
 def test_batch_core_rejects_multiple_airfoils_for_six_column_templates(
     tmp_path: Path,
 ) -> None:
-    from catia_autoblade.core import batch as batch_module
+    from autoblade.core import batch as batch_module
 
     section_dir = tmp_path / "sections"
     section_dir.mkdir()

@@ -92,7 +92,7 @@ def plan_workspace_initialization(
             )
         )
 
-    resource_root = resources.files("catia_autoblade.resources")
+    resource_root = resources.files("autoblade.resources")
     library_resources: dict[Path, Path] = {}
     if with_examples or with_airfoil_library:
         library_resources = _load_airfoil_library_resources(resource_root)

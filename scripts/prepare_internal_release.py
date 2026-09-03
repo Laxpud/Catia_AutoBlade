@@ -115,11 +115,11 @@ def prepare_release(
     if not release_notes.is_file():
         raise ValidationError(f"Release notes not found: {release_notes}")
 
-    wheel_candidates = sorted(dist_dir.glob(f"catia_autoblade-{version}-*.whl"))
-    sdist = dist_dir / f"catia_autoblade-{version}.tar.gz"
+    wheel_candidates = sorted(dist_dir.glob(f"autoblade-{version}-*.whl"))
+    sdist = dist_dir / f"autoblade-{version}.tar.gz"
     if len(wheel_candidates) != 1 or not sdist.is_file():
         raise ValidationError("Expected one wheel and one sdist before packaging.")
-    notes_target = dist_dir / f"catia-autoblade-{version}-release-notes.md"
+    notes_target = dist_dir / f"autoblade-{version}-release-notes.md"
     shutil.copyfile(release_notes, notes_target)
 
     deliverables = [wheel_candidates[0], sdist, notes_target]
@@ -135,7 +135,7 @@ def prepare_release(
     checksums[checksum_path.name] = _sha256(checksum_path)
 
     manifest = {
-        "schema": "catia-autoblade-internal-release/v1",
+        "schema": "autoblade-internal-release/v1",
         "version": version,
         "tag": tag,
         "commit": commit,
@@ -153,7 +153,7 @@ def prepare_release(
             "wheel, and restore config.toml from its migration backup if needed."
         ),
     }
-    manifest_path = dist_dir / f"catia-autoblade-{version}-internal-release.json"
+    manifest_path = dist_dir / f"autoblade-{version}-internal-release.json"
     manifest_path.write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",

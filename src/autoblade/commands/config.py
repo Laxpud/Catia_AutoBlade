@@ -47,18 +47,22 @@ def run_config_command(
                 f"{manager.CURRENT_SCHEMA_VERSION}: {manager.config_file}"
             )
             return
+        typer.echo("[INFO] Configuration migration preview:")
         typer.echo(
-            f"[INFO] Configuration migration preview: "
-            f"{plan.source_version} -> {plan.target_version}"
+            f"  schema: {plan.source_version} -> {plan.target_version}"
         )
-        typer.echo(f"  file: {plan.config_file}")
+        typer.echo(f"  source file: {plan.config_file}")
+        typer.echo(f"  target file: {plan.target_config_file}")
         for change in plan.changes:
             typer.echo(
                 f"  {change.field}: {change.before!r} -> {change.after!r} "
                 f"({change.reason})"
             )
         if not apply:
-            typer.echo("[INFO] Preview only; rerun with --apply to write a backup and migrate.")
+            typer.echo(
+                "[INFO] Preview only; rerun with --apply to write a backup "
+                "and migrate."
+            )
             return
         backup = manager.apply_migration(plan)
         typer.echo(f"[SUCCESS] Configuration migrated: {manager.config_file}")

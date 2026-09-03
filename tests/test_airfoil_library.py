@@ -10,7 +10,7 @@ REPOSITORY_AIRFOIL_DIR = PROJECT_ROOT / "input" / "airfoils"
 
 def test_builtin_airfoil_library_manifest_is_complete_and_reproducible() -> None:
     """清单必须完整描述每个可复制资源，并固定来源授权与字节摘要。"""
-    library_root = resources.files("catia_autoblade.resources").joinpath(
+    library_root = resources.files("autoblade.resources").joinpath(
         "airfoil_library"
     )
     manifest = json.loads(

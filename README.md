@@ -1,8 +1,8 @@
-# CATIA AutoBlade
+# AutoBlade
 
 [English](https://github.com/Laxpud/catia-autoblade/blob/main/README.md) | [简体中文](https://github.com/Laxpud/catia-autoblade/blob/main/docs/README.cn.md)
 
-CATIA AutoBlade is a Windows command-line tool that builds 3D blade models in CATIA V5 from airfoil point clouds and spanwise section parameters. It drives CATIA through its COM automation interface and exports both native `CATPart` files and STEP models.
+AutoBlade is a Python command-line tool whose current modeling backend builds 3D blade models in CATIA V5 from airfoil point clouds and spanwise section parameters. On Windows it drives CATIA through its COM automation interface and exports both native `CATPart` files and STEP models.
 
 ## Status
 
@@ -14,7 +14,7 @@ The stable single-airfoil and spanwise multi-airfoil milestones are complete. Th
 
 ## Scope
 
-CATIA AutoBlade currently provides:
+AutoBlade currently provides:
 
 - airfoil spline creation from CSV point clouds;
 - per-section airfoil selection with unique-profile reuse;
@@ -37,6 +37,11 @@ It is not a general-purpose airfoil editor, aerodynamic solver, or platform-inde
 
 This is the only currently verified preview baseline. Other Windows, Python, `pywin32`, processor-architecture, and CATIA combinations are unverified rather than implicitly supported. CATIA itself, its licenses, and COM registration are external prerequisites and are not included in this project. See the [distribution scope and support policy](https://github.com/Laxpud/catia-autoblade/blob/main/docs/distribution-scope.md) for the evidence and channel boundaries.
 
+The same wheel is also checked on Linux with CPython 3.14 for installation,
+package/core import, CLI help/version, Parser, Planner, and mock execution. That
+check does not provide a Linux modeling backend yet; CATIA modeling remains the
+current supported execution path.
+
 Install `uv` on Windows with WinGet:
 
 ```powershell
@@ -49,10 +54,18 @@ Authorized internal preview artifacts are installed directly from their versione
 
 ```powershell
 uv venv .venv --python 3.14
-uv pip install --python .venv\Scripts\python.exe .\catia_autoblade-0.2.0-py3-none-any.whl
+$wheel = (Resolve-Path .\autoblade-*-py3-none-any.whl).Path
+uv pip install --python .venv\Scripts\python.exe $wheel
 .\.venv\Scripts\Activate.ps1
+autoblade --version
 autoblade init C:\Engineering\blade-workspace --with-examples
 ```
+
+The expected version output starts with `autoblade`. The breaking namespace
+migration intentionally provides no `catia_autoblade` shim. When upgrading an
+existing environment, uninstall the legacy `catia-autoblade` distribution
+before installing the new wheel; AutoBlade refuses to run if both distributions
+are present.
 
 `--with-examples` installs the validated 89-section multi-airfoil blade example
 and its three referenced airfoils into the external workspace.
@@ -146,7 +159,14 @@ The automated tests use COM fakes and do not require CATIA to be installed or ru
 pwsh -File scripts/check.ps1
 ```
 
-This single entry runs pytest, Ruff, wheel/sdist builds, and distribution metadata validation. See [Automated testing](https://github.com/Laxpud/catia-autoblade/blob/main/docs/testing.md) for individual diagnostic commands and release-tag validation.
+On Linux, run the matching repository and non-editable wheel check:
+
+```bash
+bash scripts/check-linux.sh
+```
+
+These entries run pytest, Ruff, wheel/sdist builds, clean installed-wheel smoke
+tests, and distribution metadata validation. See [Automated testing](https://github.com/Laxpud/catia-autoblade/blob/main/docs/testing.md) for individual diagnostic commands and release-tag validation.
 
 ## License
 

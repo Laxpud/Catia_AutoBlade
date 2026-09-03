@@ -1,6 +1,6 @@
 # 自动化测试
 
-项目的 `pytest` 基线不依赖已安装或正在运行的 CATIA。核心导入、CSV、Planner 和坐标测试不需要 `pywin32`；完整测试矩阵在 Windows 上运行，并用 fake 或 mock 隔离所有 COM 应用创建。
+项目的 `pytest` 基线不依赖已安装或正在运行的 CATIA。核心导入、CSV、Planner 和坐标测试不需要 `pywin32`；Windows 与 Linux 都运行纯 Python/fake COM 矩阵，所有 COM 应用创建均被隔离。
 
 ## 运行命令
 
@@ -17,7 +17,9 @@ pwsh -File scripts/check.ps1
 注入 fake Builder 的执行路径；它明确清空
 `PYTHONPATH` 并确认导入文件位于新环境的 `site-packages`。
 
-`.github/workflows/checks.yml` 在 Windows CI 中调用同一脚本，不维护另一套命令。
+`.github/workflows/checks.yml` 在 Windows CI 中调用该脚本；Linux CI 调用
+`bash scripts/check-linux.sh`，执行同一组 pytest、Ruff、构建、非 editable wheel
+安装冒烟和分发校验，并确认 `pywin32`/旧 namespace 均未进入 Linux 环境。
 诊断时可使用 `-SkipSync` 或 `-SkipInstalledSmoke` 缩小范围，但里程碑和发布验收
 不得跳过安装冒烟。正式版本标签构建还应使用：
 
@@ -25,13 +27,13 @@ pwsh -File scripts/check.ps1
 pwsh -File scripts/check.ps1 -RequireTag
 ```
 
-`-RequireTag` 要求当前提交存在与 `src/catia_autoblade/__init__.py` 相同的 `0.2.0` 或 `v0.2.0` 标签。普通开发检查允许尚未打标签，但发现不一致的版本标签仍会失败。
+`-RequireTag` 要求当前提交存在与 `src/autoblade/__init__.py` 相同的 `0.2.0` 或 `v0.2.0` 标签。普通开发检查允许尚未打标签，但发现不一致的版本标签仍会失败。
 
 排查单个阶段时可分别使用 `uv run --extra dev pytest -q`、`uv run --extra dev
 ruff check src tests scripts`、`uv build`、`pwsh -File
 scripts/smoke_installed_wheel.ps1 -WheelPath <wheel>` 和 `uv run python
 scripts/validate_distribution.py`。这些命令是诊断入口，完整验收仍以
-`scripts/check.ps1` 为准。
+平台对应的 `scripts/check.ps1` 或 `scripts/check-linux.sh` 为准。
 
 ## 分层回归策略
 
@@ -58,10 +60,11 @@ pytest 专用预期失败数据不得放入 `input/` 扫描目录。当前小型
 | `test_multi_airfoil_geometry.py` | 唯一 CATIA 基准几何创建和逐截面引用编排 |
 | `test_platform_boundary.py` | 核心无 COM 导入、全新解释器导入和不可用 CATIA 后端能力错误 |
 | `test_runtime_config.py` | 配置路径、文件扫描、CLI 输出覆盖和输出命名 |
-| `test_config_compatibility.py` | 配置发现优先级、历史 schema、迁移备份、未来/未知/废弃字段和并发修改防护 |
+| `test_config_compatibility.py` | 配置发现优先级、新旧用户目录、历史 schema、迁移备份/回滚边界、未来/未知/废弃字段和并发修改防护 |
 | `test_workspace_init.py` | 外部工作区、示例/目录资源边界、覆盖授权、只读目录和 site-packages 隔离 |
 | `test_doctor.py` | 诊断摘要、COM 初始化配对、配置目录与失败退出边界 |
 | `test_distribution_workflow.py` | Hatchling 白名单、禁止产物路径和真实 CATIA 发布证据门槛 |
+| `test_distribution_identity.py` | 规范 namespace、旧 distribution 共存失败和可执行卸载提示 |
 | `test_cli.py` | 主命令、独立入口、长短选项与参数分派 |
 | `test_catia_lifecycle.py` | COM 初始化、文档关闭、应用退出、异常清理和批处理隔离 |
 

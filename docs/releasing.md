@@ -7,7 +7,7 @@
 
 - 预览阶段使用 SemVer 风格的 `0.x.y`；不兼容的配置 schema 单独使用
   `AppConfig.version`，不能拿包版本代替 schema 版本。
-- 唯一包版本源是 `src/catia_autoblade/__init__.py`。
+- 唯一包版本源是 `src/autoblade/__init__.py`。
 - Git 标签使用 `v<版本>`；同一个版本号不得重新构建不同内容并继续分发。
 - Release Notes、源码版本、标签、wheel、sdist 和发布 manifest 必须一致。
 - 内置翼型目录不建立第二版本源；其内容随包版本发布，清单中的
@@ -61,11 +61,14 @@ uv run python scripts/prepare_internal_release.py `
 发布器会再次校验标签、版本、长描述链接、wheel/sdist 内容清单和真实验证记录，
 然后在 `dist/` 生成：
 
-- `catia_autoblade-<版本>-py3-none-any.whl`；
-- `catia_autoblade-<版本>.tar.gz`；
-- `catia-autoblade-<版本>-release-notes.md`；
+- `autoblade-<版本>-py3-none-any.whl`；
+- `autoblade-<版本>.tar.gz`；
+- `autoblade-<版本>-release-notes.md`；
 - `SHA256SUMS.txt`；
-- `catia-autoblade-<版本>-internal-release.json`。
+- `autoblade-<版本>-internal-release.json`。
+
+内部发布 JSON 的当前 schema identity 为 `autoblade-internal-release/v1`；只有后续
+schema 真实增加字段时才能递增，不能沿用旧产品 identity。
 
 每个内部交付必须整体传递上述文件。接收方应先核对 SHA-256，再按[安装、工作区
 与升级](installation.md)创建独立环境。`dist/` 是本地生成目录，不提交 Git。

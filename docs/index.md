@@ -1,10 +1,10 @@
 # 技术文档索引
 
-本目录保存实现约束、数据契约和设计说明。项目介绍与使用入口见[英文 README](../README.md)，中文入口见[中文 README](README.cn.md)，当前工作见 [TODO](../TODO.md)。
+本目录保存实现约束、数据契约和设计说明。项目介绍与使用入口见[英文 README](../README.md)，中文入口见[中文 README](README.cn.md)，领域术语见[领域上下文](../CONTEXT.md)，当前工作见 [TODO](../TODO.md)。
 
 ## 当前文档
 
-- [架构说明](architecture.md)：模块边界、CATIA 建模流程、资源生命周期和当前限制。
+- [当前架构](architecture.md)：`v0.2.0` 的模块边界、CATIA 建模流程、资源生命周期和当前限制。
 - [设计原则](design-principles.md)：`create`、`batch`、`sweep` 的职责，模型输入模式和任务边界。
 - [CLI 参考](cli.md)：命令参数、交互模式、任务预览、覆盖规则、退出码和示例。
 - [输入数据格式](input-formats.md)：坐标系、CSV schema、单位、点序以及多翼型扩展状态。
@@ -19,11 +19,30 @@
 - [未发布变更](release-notes/unreleased.md)：尚未进入新版本制品集的功能与分发边界变化。
 - [自动化测试](testing.md)：无 CATIA 测试入口、覆盖范围、COM 隔离和真实几何回归边界。
 
+## 已接受的目标设计与活动计划
+
+以下文档描述尚未完成的 `v0.3.0` 目标，不代表当前版本已经支持 FreeCAD 或新的包名：
+
+- [AutoBlade `v0.3.0` 目标架构](architecture-target.md)：多后端边界、FreeCAD 进程协议、原生可重算模型、产物事务和验证门禁。
+- [AutoBlade `v0.3.0` 实施计划](plans/autoblade-0.3.0.md)：按依赖顺序拆分的阶段、退出条件、证据和回滚边界。
+
+## 架构决策
+
+- [ADR-0001：采用 AutoBlade 多后端身份](adr/0001-adopt-autoblade-multi-backend-identity.md)。
+- [ADR-0002：隔离 CAD 后端与 FreeCAD 进程](adr/0002-isolate-cad-backends-and-freecad-processes.md)。
+- [ADR-0003：构建原生、可重算的 FreeCAD 模型](adr/0003-build-native-recomputable-freecad-models.md)。
+- [ADR-0004：使用受控的跨后端黄金基线](adr/0004-use-curated-cross-backend-golden-baselines.md)。
+
 ## 内容归属
 
 - `README.md`：公开项目入口、当前能力、环境要求和最短使用路径。
-- `TODO.md`：活动里程碑、待办事项和可验证的完成标准。
-- `docs/`：稳定的技术契约、设计理由和长篇实现说明。
+- `CONTEXT.md`：跨模块共享的领域术语及其关系，不承载实现方案。
+- `TODO.md`：唯一活动工作入口，只保留当前焦点、里程碑退出条件和到详细计划的链接。
+- `docs/architecture.md`：已经实现的当前架构事实。
+- `docs/architecture-target.md`：已接受但尚未全部实现的目标系统结构与长期约束。
+- `docs/adr/`：重要架构决策、备选方案和后果；不代替当前或目标架构总览。
+- `docs/plans/`：有结束条件的实施计划、依赖、验证证据和回滚策略。
+- 其他 `docs/*.md`：稳定的技术契约、设计理由和长篇实现说明。
 - `docs/archive/`：已经完成或被当前架构取代的历史计划；现有记录见[截至 0.1.1 的已完成里程碑](archive/milestones-through-0.1.1.md)、[`v0.2.0` 内部 preview wheel 里程碑](archive/internal-preview-wheel-0.2.0.md)、[显式参数扫描 `sweep` 里程碑](archive/explicit-parameter-sweep.md)和[真实示例与内置翼型目录里程碑](archive/real-example-and-airfoil-library.md)。
 
 新增文档应优先补充现有主题。只有当内容具有独立维护边界时，才创建新的技术文档。

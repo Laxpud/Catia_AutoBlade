@@ -4,8 +4,13 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+from importlib import metadata, util
 import json
 from pathlib import Path
+import shutil
+import site
+import subprocess
+import sys
 
 
 def main() -> int:
@@ -15,16 +20,29 @@ def main() -> int:
     parser.add_argument("--repository-root", type=Path, required=True)
     args = parser.parse_args()
 
-    import catia_autoblade
-    from catia_autoblade.commands.create import run_create_command
-    from catia_autoblade.config.manager import ConfigManager
-    from catia_autoblade.utils.file_scanner import get_available_files
+    import autoblade
+    from autoblade.commands.create import run_create_command
+    from autoblade.config.manager import ConfigManager
+    from autoblade.utils.file_scanner import get_available_files
 
-    package_file = Path(catia_autoblade.__file__).resolve()
+    package_file = Path(autoblade.__file__).resolve()
     source_tree = (args.repository_root / "src").resolve()
     if package_file == source_tree or source_tree in package_file.parents:
         raise RuntimeError(
             f"Smoke test imported the repository source tree: {package_file}"
+        )
+    if metadata.version("autoblade") != autoblade.__version__:
+        raise RuntimeError("Installed distribution and package versions differ.")
+    if util.find_spec("catia_autoblade") is not None:
+        raise RuntimeError("Legacy catia_autoblade namespace is still importable.")
+    try:
+        legacy_version = metadata.version("catia-autoblade")
+    except metadata.PackageNotFoundError:
+        pass
+    else:
+        raise RuntimeError(
+            "Legacy catia-autoblade distribution remains installed: "
+            f"{legacy_version}"
         )
 
     config_file = (args.workspace / "config.toml").resolve()
@@ -84,11 +102,48 @@ def main() -> int:
     if list(library_sections.iterdir()):
         raise RuntimeError("--with-airfoil-library copied blade examples.")
 
+    _verify_legacy_distribution_conflict()
+
     print(f"Installed package: {package_file}")
     print(f"Initialized workspace: {args.workspace.resolve()}")
     print(f"Airfoil library workspace: {args.library_workspace.resolve()}")
     print("Input preflight and mock modeling path: PASS")
     return 0
+
+
+def _verify_legacy_distribution_conflict() -> None:
+    """在隔离 smoke venv 中注入旧元数据，验证运行时互斥保护。"""
+    site_packages = Path(site.getsitepackages()[0])
+    legacy_metadata = site_packages / "catia_autoblade-0.2.0.dist-info"
+    if legacy_metadata.exists():
+        raise RuntimeError(
+            f"Smoke environment unexpectedly contains {legacy_metadata}"
+        )
+    legacy_metadata.mkdir()
+    try:
+        (legacy_metadata / "METADATA").write_text(
+            "Metadata-Version: 2.4\n"
+            "Name: catia-autoblade\n"
+            "Version: 0.2.0\n",
+            encoding="utf-8",
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", "import autoblade"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    finally:
+        # 该目录由本函数以固定叶名称创建，且只位于一次性 smoke venv 中。
+        shutil.rmtree(legacy_metadata)
+
+    if result.returncode == 0:
+        raise RuntimeError("Legacy distribution coexistence was not rejected.")
+    if "pip uninstall catia-autoblade" not in result.stderr:
+        raise RuntimeError(
+            "Legacy distribution error did not provide uninstall guidance: "
+            f"{result.stderr}"
+        )
 
 
 if __name__ == "__main__":

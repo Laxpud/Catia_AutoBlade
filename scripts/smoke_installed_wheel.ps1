@@ -28,6 +28,7 @@ $autobladeExe = Join-Path $venvDir "Scripts\autoblade.exe"
 $createExe = Join-Path $venvDir "Scripts\autoblade-create.exe"
 $batchExe = Join-Path $venvDir "Scripts\autoblade-batch.exe"
 $previousPythonPath = $env:PYTHONPATH
+$previousAppData = $env:APPDATA
 
 function Invoke-SmokeStep {
     param(
@@ -82,6 +83,41 @@ try {
     Invoke-SmokeStep -Name "Read initialized configuration" -Action {
         & $autobladeExe --config $workspaceConfig config show
     }
+    $configHome = Join-Path $smokeRoot "config-home"
+    $legacyConfigDir = Join-Path $configHome "catia-autoblade"
+    $canonicalConfig = Join-Path $configHome "autoblade\config.toml"
+    New-Item -ItemType Directory -Path $legacyConfigDir | Out-Null
+    Copy-Item -LiteralPath $workspaceConfig `
+        -Destination (Join-Path $legacyConfigDir "config.toml")
+    $env:APPDATA = $configHome
+    Push-Location $smokeRoot
+    try {
+        Invoke-SmokeStep -Name "Preview legacy user config location migration" -Action {
+            & $autobladeExe config migrate
+        }
+        if (Test-Path -LiteralPath $canonicalConfig) {
+            throw "Configuration preview unexpectedly wrote the canonical file."
+        }
+        Invoke-SmokeStep -Name "Apply legacy user config location migration" -Action {
+            & $autobladeExe config migrate --apply
+        }
+    }
+    finally {
+        Pop-Location
+    }
+    if (
+        -not (Test-Path -LiteralPath $canonicalConfig) -or
+        (Test-Path -LiteralPath (Join-Path $legacyConfigDir "config.toml"))
+    ) {
+        throw "Legacy user configuration location migration did not complete."
+    }
+    $legacyBackups = @(
+        Get-ChildItem -LiteralPath $legacyConfigDir `
+            -Filter "config.toml.v3.0.0.bak*"
+    )
+    if ($legacyBackups.Count -ne 1) {
+        throw "Expected exactly one legacy user configuration backup."
+    }
     Invoke-SmokeStep -Name "Run installed input preflight and mock build" -Action {
         & $pythonExe (Join-Path $PSScriptRoot "installed_wheel_smoke.py") `
             --workspace $workspaceDir `
@@ -91,6 +127,7 @@ try {
 }
 finally {
     $env:PYTHONPATH = $previousPythonPath
+    $env:APPDATA = $previousAppData
     $resolvedRoot = [System.IO.Path]::GetFullPath($smokeRoot)
     $expectedPrefix = [System.IO.Path]::GetFullPath($projectRoot) + `
         [System.IO.Path]::DirectorySeparatorChar

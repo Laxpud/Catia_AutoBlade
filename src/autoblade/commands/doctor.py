@@ -41,7 +41,7 @@ def run_doctor_command(
     """输出不连接 CATIA 的诊断摘要，并让明确失败反映到退出码。"""
     manager = config_manager or ConfigManager()
     checks = (collector or collect_doctor_checks)(manager)
-    typer.echo("CATIA AutoBlade doctor")
+    typer.echo("AutoBlade doctor")
     typer.echo(f"app_version: {__version__}")
     for check in checks:
         typer.echo(f"{check.name}: {check.status} - {check.detail}")
@@ -67,9 +67,18 @@ def collect_doctor_checks(manager: ConfigManager) -> list[DoctorCheck]:
             config_detail = manager.source_description
             config_status = "PASS"
         else:
+            migrations = []
+            if plan.source_version != plan.target_version:
+                migrations.append(
+                    f"schema {plan.source_version} -> {plan.target_version}"
+                )
+            if plan.config_file != plan.target_config_file:
+                migrations.append(
+                    f"location {plan.config_file} -> {plan.target_config_file}"
+                )
             config_detail = (
-                f"{manager.source_description}; migration "
-                f"{plan.source_version} -> {plan.target_version} available"
+                f"{manager.source_description}; "
+                f"{', '.join(migrations)} migration available"
             )
             config_status = "WARN"
         checks.append(DoctorCheck("config", config_status, config_detail))

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+from configparser import ConfigParser
 from email.message import Message
 from email.parser import Parser
 import hashlib
@@ -19,29 +20,39 @@ from zipfile import ZipFile
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 PYPROJECT_PATH = PROJECT_ROOT / "pyproject.toml"
-VERSION_PATH = PROJECT_ROOT / "src" / "catia_autoblade" / "__init__.py"
+VERSION_PATH = PROJECT_ROOT / "src" / "autoblade" / "__init__.py"
 README_PATH = PROJECT_ROOT / "README.md"
-EXPECTED_PROJECT_NAME = "catia-autoblade"
+EXPECTED_PROJECT_NAME = "autoblade"
+EXPECTED_SUMMARY = "AutoBlade command-line tool for creating blade models with CATIA"
 EXPECTED_REQUIRES_PYTHON = ">=3.14,<3.15"
+EXPECTED_CONSOLE_SCRIPTS = {
+    "autoblade": "autoblade.cli:app",
+    "autoblade-create": "autoblade.cli:create_entrypoint",
+    "autoblade-batch": "autoblade.cli:batch_entrypoint",
+}
 REQUIRED_WHEEL_FILES = {
-    "catia_autoblade/resources/workspace/config.toml",
-    "catia_autoblade/resources/airfoil_library/manifest.json",
-    "catia_autoblade/resources/airfoil_library/airfoil1_sharp.csv",
-    "catia_autoblade/resources/airfoil_library/airfoil2_sharp.csv",
-    "catia_autoblade/resources/airfoil_library/airfoil3_sharp.csv",
+    "autoblade/_distribution.py",
+    "autoblade/resources/workspace/config.toml",
+    "autoblade/resources/airfoil_library/manifest.json",
+    "autoblade/resources/airfoil_library/airfoil1_sharp.csv",
+    "autoblade/resources/airfoil_library/airfoil2_sharp.csv",
+    "autoblade/resources/airfoil_library/airfoil3_sharp.csv",
     (
-        "catia_autoblade/resources/workspace/blade_sections/"
+        "autoblade/resources/workspace/blade_sections/"
         "example-blade-sections.csv"
     ),
 }
 REQUIRED_SDIST_PATHS = {
+    "CONTEXT.md",
     "LICENSE",
     "README.md",
     "pyproject.toml",
     "uv.lock",
     "scripts/check.ps1",
+    "scripts/check-linux.sh",
+    "scripts/smoke_installed_wheel.sh",
     "scripts/validate_distribution.py",
-    "src/catia_autoblade/__init__.py",
+    "src/autoblade/__init__.py",
     "tests/conftest.py",
 }
 FORBIDDEN_PARTS = {
@@ -86,7 +97,7 @@ def _source_version() -> str:
 
 
 def _read_wheel_metadata(dist_dir: Path, version: str) -> Message:
-    wheel_pattern = f"catia_autoblade-{version}-*.whl"
+    wheel_pattern = f"autoblade-{version}-*.whl"
     wheels = sorted(dist_dir.glob(wheel_pattern))
     if len(wheels) != 1:
         raise ValidationError(
@@ -106,23 +117,28 @@ def _read_wheel_metadata(dist_dir: Path, version: str) -> Message:
 
 
 def _wheel_path(dist_dir: Path, version: str) -> Path:
-    wheels = sorted(dist_dir.glob(f"catia_autoblade-{version}-*.whl"))
+    wheels = sorted(dist_dir.glob(f"autoblade-{version}-*.whl"))
     if len(wheels) != 1:
         raise ValidationError(
             f"Expected exactly one wheel for {version}, found {len(wheels)}"
         )
-    return wheels[0]
+    wheel = wheels[0]
+    if not wheel.name.endswith("-py3-none-any.whl"):
+        raise ValidationError(
+            f"Expected a platform-neutral Python wheel, found {wheel.name}"
+        )
+    return wheel
 
 
 def _sdist_path(dist_dir: Path, version: str) -> Path:
-    path = dist_dir / f"catia_autoblade-{version}.tar.gz"
+    path = dist_dir / f"autoblade-{version}.tar.gz"
     if not path.is_file():
         raise ValidationError(f"Expected sdist not found: {path}")
     return path
 
 
 def _read_sdist_metadata(dist_dir: Path, version: str) -> Message:
-    sdist = dist_dir / f"catia_autoblade-{version}.tar.gz"
+    sdist = dist_dir / f"autoblade-{version}.tar.gz"
     if not sdist.is_file():
         raise ValidationError(f"Expected sdist not found: {sdist}")
 
@@ -144,11 +160,12 @@ def _read_sdist_metadata(dist_dir: Path, version: str) -> Message:
 
 
 def _validate_metadata(metadata: Message, version: str, artifact: str) -> None:
-    """验证 wheel 与 sdist 必须一致的核心元数据和 Windows 支持声明。"""
+    """验证 wheel 与 sdist 必须一致的身份、平台和依赖元数据。"""
     expected_headers = {
         "Name": EXPECTED_PROJECT_NAME,
         "Version": version,
         "License-File": "LICENSE",
+        "Summary": EXPECTED_SUMMARY,
     }
     for header, expected in expected_headers.items():
         if metadata.get(header) != expected:
@@ -166,6 +183,7 @@ def _validate_metadata(metadata: Message, version: str, artifact: str) -> None:
     classifiers = set(metadata.get_all("Classifier", []))
     required_classifiers = {
         "Operating System :: Microsoft :: Windows",
+        "Operating System :: POSIX :: Linux",
         "Programming Language :: Python :: 3.14",
     }
     missing_classifiers = required_classifiers - classifiers
@@ -204,22 +222,27 @@ def _validate_pyproject() -> None:
     project = data["project"]
     if project["name"] != EXPECTED_PROJECT_NAME:
         raise ValidationError("pyproject project name changed unexpectedly")
+    if project["description"] != EXPECTED_SUMMARY:
+        raise ValidationError("pyproject description differs from product identity")
     if project["requires-python"] != EXPECTED_REQUIRES_PYTHON:
         raise ValidationError("pyproject requires-python differs from support policy")
     if project.get("dynamic") != ["version"]:
         raise ValidationError("pyproject must keep dynamic versioning")
+    if project.get("scripts") != EXPECTED_CONSOLE_SCRIPTS:
+        raise ValidationError("pyproject console entry points differ from CLI contract")
     version_path = data["tool"]["hatch"]["version"]["path"]
-    if version_path != "src/catia_autoblade/__init__.py":
+    if version_path != "src/autoblade/__init__.py":
         raise ValidationError("Hatchling version path differs from source contract")
     wheel_packages = data["tool"]["hatch"]["build"]["targets"]["wheel"][
         "packages"
     ]
-    if wheel_packages != ["src/catia_autoblade"]:
+    if wheel_packages != ["src/autoblade"]:
         raise ValidationError("wheel package whitelist changed unexpectedly")
     sdist_include = set(
         data["tool"]["hatch"]["build"]["targets"]["sdist"]["include"]
     )
     required_sdist_sources = {
+        "/CONTEXT.md",
         "/LICENSE",
         "/README.md",
         "/pyproject.toml",
@@ -259,14 +282,14 @@ def _validate_cli_version(version: str) -> None:
     environment = os.environ.copy()
     environment["PYTHONPATH"] = str(PROJECT_ROOT / "src")
     result = subprocess.run(
-        [sys.executable, "-m", "catia_autoblade.cli", "--version"],
+        [sys.executable, "-m", "autoblade.cli", "--version"],
         cwd=PROJECT_ROOT,
         env=environment,
         capture_output=True,
         text=True,
         check=False,
     )
-    expected = f"catia-autoblade {version}"
+    expected = f"autoblade {version}"
     if result.returncode != 0 or result.stdout.strip() != expected:
         raise ValidationError(
             "CLI version mismatch: "
@@ -287,20 +310,21 @@ def _validate_distribution_contents(dist_dir: Path, version: str) -> None:
                 f"wheel missing initialization resources: {sorted(missing_wheel)}"
             )
         allowed_prefixes = (
-            "catia_autoblade/",
-            f"catia_autoblade-{version}.dist-info/",
+            "autoblade/",
+            f"autoblade-{version}.dist-info/",
         )
         unexpected = [
             name for name in wheel_names if not name.startswith(allowed_prefixes)
         ]
         if unexpected:
             raise ValidationError(f"wheel contains unexpected roots: {unexpected}")
+        _validate_wheel_entry_points(archive, version)
         _validate_no_local_path_leak(
             ((name, archive.read(name)) for name in wheel_names),
             artifact="wheel",
         )
 
-    sdist_root = f"catia_autoblade-{version}/"
+    sdist_root = f"autoblade-{version}/"
     with tarfile.open(sdist_path, "r:gz") as archive:
         file_members = [member for member in archive.getmembers() if member.isfile()]
         sdist_names = sorted(member.name for member in file_members)
@@ -326,6 +350,25 @@ def _validate_distribution_contents(dist_dir: Path, version: str) -> None:
 
     _write_content_manifest(dist_dir, wheel_path.name, wheel_names)
     _write_content_manifest(dist_dir, sdist_path.name, sdist_names)
+
+
+def _validate_wheel_entry_points(archive: ZipFile, version: str) -> None:
+    """从实际 wheel 校验三个稳定 console entry，防止只改 pyproject 未落入制品。"""
+    path = f"autoblade-{version}.dist-info/entry_points.txt"
+    try:
+        content = archive.read(path).decode("utf-8")
+    except KeyError as error:
+        raise ValidationError(f"wheel entry point metadata is missing: {path}") from error
+    parser = ConfigParser()
+    parser.read_string(content)
+    if not parser.has_section("console_scripts"):
+        raise ValidationError("wheel has no console_scripts entry point section")
+    actual = dict(parser.items("console_scripts"))
+    if actual != EXPECTED_CONSOLE_SCRIPTS:
+        raise ValidationError(
+            f"wheel console scripts mismatch: {actual!r} != "
+            f"{EXPECTED_CONSOLE_SCRIPTS!r}"
+        )
 
 
 def _validate_archive_names(names: list[str], *, artifact: str) -> None:

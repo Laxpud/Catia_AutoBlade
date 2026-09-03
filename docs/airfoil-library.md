@@ -12,7 +12,7 @@
 | `airfoil2_sharp` | 253 | 已审计，纳入清单 |
 | `airfoil3_sharp` | 249 | 已审计，纳入清单 |
 
-作者、授权方式、项目内修改和 SHA-256 记录在包资源 `catia_autoblade/resources/airfoil_library/manifest.json`；人类可读的授权及脱敏说明见[真实示例数据审计](example-data-audit.md)。清单摘要针对 `.gitattributes` 固定为 LF 的实际分发字节。
+作者、授权方式、项目内修改和 SHA-256 记录在包资源 `autoblade/resources/airfoil_library/manifest.json`；人类可读的授权及脱敏说明见[真实示例数据审计](example-data-audit.md)。清单摘要针对 `.gitattributes` 固定为 LF 的实际分发字节。
 
 以下仓库输入不属于当前内置目录：
 
@@ -46,7 +46,7 @@ autoblade init C:\Engineering\blade-workspace --with-airfoil-library
 
 ## 版本与拆包边界
 
-短期内目录与 `catia-autoblade` wheel 同版本发布，不建立独立的目录版本号。`manifest.json` 的 `schema_version` 只表示清单结构，不能解释为数据内容版本；某个软件版本的目录内容由该版本 wheel、清单中的精确文件集合和每文件 SHA-256 共同确定。
+短期内目录与 `autoblade` wheel 同版本发布，不建立独立的目录版本号。`manifest.json` 的 `schema_version` 只表示清单结构，不能解释为数据内容版本；某个软件版本的目录内容由该版本 wheel、清单中的精确文件集合和每文件 SHA-256 共同确定。
 
 初始化器和自动化测试同时检查“清单中的文件都存在”和“包中的 CSV 都进入清单”，因此同一发布制品不会包含未审计的隐藏翼型。增加、修改或删除任一条目都属于软件发布内容变化，必须更新未发布说明，随后进入下一个版本的正式 Release Notes，并重新执行完整分发检查。
 

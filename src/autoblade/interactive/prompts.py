@@ -93,7 +93,7 @@ def select_main_action() -> str:
     """返回顶层菜单动作；未实现能力会被明确标记为规划项。"""
     return _ask(
         questionary.select(
-            "CATIA AutoBlade:",
+            "AutoBlade:",
             choices=[
                 questionary.Choice("Create one blade", value="create"),
                 questionary.Choice("Run a batch", value="batch"),

@@ -1,8 +1,10 @@
+import os
 from pathlib import Path
+import warnings
 
 import pytest
 
-from catia_autoblade.config.manager import (
+from autoblade.config.manager import (
     ConfigCompatibilityError,
     ConfigManager,
     ConfigMigrationRequiredError,
@@ -95,6 +97,179 @@ def test_config_discovery_priority_is_explicit_workspace_user_defaults(
     assert manager.source.kind == "defaults"
     assert manager.config_file == (working_dir / "config.toml").resolve()
     assert manager.load().version == "3.0.0"
+
+
+def test_default_user_config_uses_canonical_autoblade_directory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    if os.name == "nt":
+        monkeypatch.setenv("APPDATA", str(tmp_path))
+    else:
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+
+    assert ConfigManager.default_user_config_file() == (
+        tmp_path / "autoblade" / "config.toml"
+    )
+    assert ConfigManager.default_legacy_user_config_file() == (
+        tmp_path / "catia-autoblade" / "config.toml"
+    )
+
+
+def test_legacy_user_directory_is_warning_fallback_when_new_path_is_absent(
+    tmp_path: Path,
+) -> None:
+    working_dir = tmp_path / "workspace"
+    canonical = tmp_path / "autoblade" / "config.toml"
+    legacy = _write(tmp_path / "catia-autoblade" / "config.toml")
+
+    with pytest.warns(ConfigMigrationWarning, match="legacy user configuration"):
+        manager = ConfigManager.discover(
+            working_dir=working_dir,
+            user_config_file=canonical,
+            legacy_user_config_file=legacy,
+        )
+
+    assert manager.source.kind == "legacy-user"
+    assert manager.config_file == legacy.resolve()
+    assert manager.load().defaults.author == "Ada"
+
+
+def test_canonical_user_directory_wins_when_both_paths_exist(tmp_path: Path) -> None:
+    working_dir = tmp_path / "workspace"
+    canonical = _write(
+        tmp_path / "autoblade" / "config.toml",
+        CURRENT_CONFIG.replace('author = "Ada"', 'author = "Canonical"'),
+    )
+    legacy = _write(
+        tmp_path / "catia-autoblade" / "config.toml",
+        CURRENT_CONFIG.replace('author = "Ada"', 'author = "Legacy"'),
+    )
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        manager = ConfigManager.discover(
+            working_dir=working_dir,
+            user_config_file=canonical,
+            legacy_user_config_file=legacy,
+        )
+
+    assert manager.source.kind == "user"
+    assert manager.config_file == canonical.resolve()
+    assert manager.load().defaults.author == "Canonical"
+    assert not any(
+        issubclass(item.category, ConfigMigrationWarning) for item in caught
+    )
+
+
+def test_legacy_user_location_migration_previews_backs_up_and_preserves_paths(
+    tmp_path: Path,
+) -> None:
+    working_dir = tmp_path / "workspace"
+    canonical = tmp_path / "autoblade" / "config.toml"
+    legacy = _write(tmp_path / "catia-autoblade" / "config.toml")
+    original = legacy.read_bytes()
+
+    with pytest.warns(ConfigMigrationWarning):
+        manager = ConfigManager.discover(
+            working_dir=working_dir,
+            user_config_file=canonical,
+            legacy_user_config_file=legacy,
+        )
+    runtime_before = manager.load_runtime()
+    plan = manager.plan_migration()
+
+    assert plan is not None
+    assert plan.config_file == legacy.resolve()
+    assert plan.target_config_file == canonical.resolve()
+    assert [change.field for change in plan.changes] == [
+        "paths.input_dir",
+        "paths.output_dir",
+        "config_file",
+    ]
+    assert legacy.read_bytes() == original
+    assert not canonical.exists()
+
+    backup = manager.apply_migration(plan)
+
+    assert backup.read_bytes() == original
+    assert not legacy.exists()
+    assert canonical.is_file()
+    assert manager.config_file == canonical.resolve()
+    assert manager.source.kind == "user"
+    runtime_after = manager.load_runtime()
+    assert runtime_after.paths.input_dir == runtime_before.paths.input_dir
+    assert runtime_after.paths.output_dir == runtime_before.paths.output_dir
+    assert manager.plan_migration() is None
+
+
+def test_legacy_user_location_cannot_be_written_before_explicit_migration(
+    tmp_path: Path,
+) -> None:
+    canonical = tmp_path / "autoblade" / "config.toml"
+    legacy = _write(tmp_path / "catia-autoblade" / "config.toml")
+    with pytest.warns(ConfigMigrationWarning):
+        manager = ConfigManager.discover(
+            working_dir=tmp_path / "workspace",
+            user_config_file=canonical,
+            legacy_user_config_file=legacy,
+        )
+
+    with pytest.raises(ConfigMigrationRequiredError, match="location migration"):
+        manager.save(manager.load())
+
+
+def test_location_migration_refuses_canonical_file_created_after_preview(
+    tmp_path: Path,
+) -> None:
+    canonical = tmp_path / "autoblade" / "config.toml"
+    legacy = _write(tmp_path / "catia-autoblade" / "config.toml")
+    with pytest.warns(ConfigMigrationWarning):
+        manager = ConfigManager.discover(
+            working_dir=tmp_path / "workspace",
+            user_config_file=canonical,
+            legacy_user_config_file=legacy,
+        )
+    plan = manager.plan_migration()
+    assert plan is not None
+    _write(canonical, CURRENT_CONFIG.replace('author = "Ada"', 'author = "New"'))
+
+    with pytest.raises(ConfigCompatibilityError, match="Refusing to overwrite"):
+        manager.apply_migration(plan)
+
+    assert legacy.is_file()
+    assert 'author = "New"' in canonical.read_text(encoding="utf-8")
+
+
+def test_legacy_schema_and_user_location_migrate_in_one_guarded_apply(
+    tmp_path: Path,
+) -> None:
+    canonical = tmp_path / "autoblade" / "config.toml"
+    legacy = _write(
+        tmp_path / "catia-autoblade" / "config.toml",
+        LEGACY_CONFIG,
+    )
+    with pytest.warns(ConfigMigrationWarning):
+        manager = ConfigManager.discover(
+            working_dir=tmp_path / "workspace",
+            user_config_file=canonical,
+            legacy_user_config_file=legacy,
+        )
+    with pytest.warns(ConfigMigrationWarning):
+        runtime_before = manager.load_runtime()
+
+    plan = manager.plan_migration()
+    assert plan is not None
+    assert plan.source_version == "1.0.0"
+    assert plan.target_version == "3.0.0"
+    assert plan.changes[-1].field == "config_file"
+
+    backup = manager.apply_migration(plan)
+
+    assert backup.read_text(encoding="utf-8") == LEGACY_CONFIG
+    assert 'version = "3.0.0"' in canonical.read_text(encoding="utf-8")
+    assert manager.load_runtime().paths.input_dir == runtime_before.paths.input_dir
+    assert manager.plan_migration() is None
 
 
 def test_explicit_relative_config_is_anchored_to_invocation_directory(

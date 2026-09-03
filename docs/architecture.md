@@ -1,54 +1,63 @@
 # 架构说明
 
+> **状态：当前架构。** 本文只描述仓库现有 `0.2.0` CATIA 实现，不把已接受但
+> 尚未完成的 FreeCAD 工作写成当前能力。`0.3.0` 的目标结构见
+> [AutoBlade 目标架构](architecture-target.md)，实施顺序见
+> [`0.3.0` 计划](plans/autoblade-0.3.0.md)。
+
 ## 系统边界
 
-CATIA AutoBlade 的完整建模产品是运行在 Windows 上的 Python CLI。Python 负责读取输入、计算截面变换和编排流程；实际几何创建、Loft、实体封闭和格式导出由 CATIA V5 COM 对象完成。
+AutoBlade 的完整建模产品是运行在 Windows 上的 Python CLI。Python 负责读取输入、计算截面变换和编排流程；实际几何创建、Loft、实体封闭和格式导出由 CATIA V5 COM 对象完成。
 
 Parser、Validation、Planner、任务模型和坐标计算不依赖 Windows COM，可在其他平台导入和测试；这只承诺跨平台预检与规划，不表示能在 Linux 或 macOS 上生成模型。项目不包含独立几何内核，离开受支持的 Windows/CATIA 环境无法生成最终模型。
 
 ## 调用链
 
-```text
-Typer CLI
-  -> init / config / doctor：外部工作区、schema 与无 CATIA 环境诊断
-  -> commands / interactive：参数或交互选择、预览和执行确认
-  -> Planner：解析 CSV、闭合输入引用并生成 BladeBuildJob
-  -> Executor：执行一个或多个任务并汇总 BuildResult
-  -> adapters.cad.catia.builder：CATIA 几何调用、建模与导出
-  -> adapters.cad.catia.session：Windows COM 与 CATIA 会话生命周期
-  -> CATIA V5：CATPart 文档、HybridShape、Loft、CloseSurface
+```mermaid
+flowchart LR
+    User[工程人员或脚本] --> CLI[Typer CLI]
+    CLI --> Workspace[init / config / doctor]
+    CLI --> Commands[commands / interactive]
+    Commands --> Planner[Parser / Validation / Planner]
+    Planner --> Job[BladeBuildJob]
+    Job --> Executor[Executor]
+    Executor --> Builder[CATIA Builder]
+    Builder --> Session[Owned COM session]
+    Session --> CATIA[CATIA V5]
+    CATIA --> Artifacts[CATPart + STEP]
 ```
 
 主要模块职责：
 
-- `catia_autoblade.cli`：注册子命令、TTY 菜单入口，并统一异常呈现与退出码。
-- `catia_autoblade.interactive`：只收集选择和确认；取消当前操作时返回上一级。
-- `catia_autoblade.commands`：把 CLI 或交互选择交给 Planner，展示任务并调用 Executor，不包含 CATIA 几何规则。
-- `catia_autoblade.core.jobs`：定义已闭合的 `BladeBuildJob` 和结构化 `BuildResult`。
-- `catia_autoblade.core.planner`：完整解析输入、固定输出并检查同批次目标冲突。
-- `catia_autoblade.core.sweep`：只展开显式选择的 Cartesian product，并生成可序列化的稳定扫描清单。
-- `catia_autoblade.core.executor`：执行任务；批量模式记录单项失败并继续后续任务。
-- `catia_autoblade.core.geometry`：后端无关的米制坐标变换和截面缩放。
-- `catia_autoblade.core.input_validation`：在启动 CATIA 前解析 CSV 并执行数据契约校验。
-- `catia_autoblade.core.input_plan`：解析受限跨文件引用，生成有序截面、唯一翼型和后缘拓扑计划。
-- `catia_autoblade.adapters.cad.catia.builder`：CATIA 特征创建、单位边界、保存、导出和失败快照。
-- `catia_autoblade.adapters.cad.catia.session`：独占 CATIA 实例并管理文档与 COM 生命周期。
-- `catia_autoblade.core.create_blade` 与 `core.catia_session`：仅保留旧 Python 导入路径的延迟兼容转发，不包含 COM 实现。
-- `catia_autoblade.core.batch`：保留 Python 批处理入口，并转发到统一 Planner 与 Executor。
-- `catia_autoblade.config`：配置模型、TOML 持久化及运行时绝对路径解析。
-- `catia_autoblade.resources`：wheel 内不可变的工作区配置、真实多翼型示例和
+- `autoblade.cli`：注册子命令、TTY 菜单入口，并统一异常呈现与退出码。
+- `autoblade.interactive`：只收集选择和确认；取消当前操作时返回上一级。
+- `autoblade.commands`：把 CLI 或交互选择交给 Planner，展示任务并调用 Executor，不包含 CATIA 几何规则。
+- `autoblade.core.jobs`：定义已闭合的 `BladeBuildJob` 和结构化 `BuildResult`。
+- `autoblade.core.planner`：完整解析输入、固定输出并检查同批次目标冲突。
+- `autoblade.core.sweep`：只展开显式选择的 Cartesian product，并生成可序列化的稳定扫描清单。
+- `autoblade.core.executor`：执行任务；批量模式记录单项失败并继续后续任务。
+- `autoblade.core.geometry`：后端无关的米制坐标变换和截面缩放。
+- `autoblade.core.input_validation`：在启动 CATIA 前解析 CSV 并执行数据契约校验。
+- `autoblade.core.input_plan`：解析受限跨文件引用，生成有序截面、唯一翼型和后缘拓扑计划。
+- `autoblade.adapters.cad.catia.builder`：CATIA 特征创建、单位边界、保存、导出和失败快照。
+- `autoblade.adapters.cad.catia.session`：独占 CATIA 实例并管理文档与 COM 生命周期。
+- `autoblade.core.create_blade` 与 `core.catia_session`：保留既有 AutoBlade Python
+  API 的延迟转发，不包含 COM 实现；旧 `catia_autoblade` namespace 不提供 shim。
+- `autoblade.core.batch`：保留 Python 批处理入口，并转发到统一 Planner 与 Executor。
+- `autoblade.config`：配置模型、TOML 持久化及运行时绝对路径解析。
+- `autoblade.resources`：wheel 内不可变的工作区配置、真实多翼型示例和
   独立内置翼型目录；只能由 `autoblade init` 按显式选项复制到包外目标。
-- `catia_autoblade.commands.initialize`：完整预览、冲突授权和原子复制，不删除
+- `autoblade.commands.initialize`：完整预览、冲突授权和原子复制，不删除
   目标中的其他用户文件。
-- `catia_autoblade.commands.doctor`：Windows/Python/COM/注册表/配置/目录诊断；
+- `autoblade.commands.doctor`：Windows/Python/COM/注册表/配置/目录诊断；
   不创建 CATIA Automation 应用。
-- `catia_autoblade.utils.file_scanner`：从配置的输入目录发现 CSV 文件。
+- `autoblade.utils.file_scanner`：从配置的输入目录发现 CSV 文件。
 
 ## 核心与 CATIA Adapter 边界
 
-`catia_autoblade.core` 不直接导入 `pythoncom`、`win32com` 或 CATIA COM 对象。领域长度统一使用 m，核心坐标函数只返回普通 Python 数值；`CATIA_MM_PER_METER` 和具体 mm 换算只存在于 CATIA Builder 的 Automation 调用边界。
+`autoblade.core` 不直接导入 `pythoncom`、`win32com` 或 CATIA COM 对象。领域长度统一使用 m，核心坐标函数只返回普通 Python 数值；`CATIA_MM_PER_METER` 和具体 mm 换算只存在于 CATIA Builder 的 Automation 调用边界。
 
-CATIA Builder 在输入计划完成后才延迟加载会话实现。因此仅导入顶层包、Parser、Validation、Planner、`BladeBuildJob` 或坐标函数不会加载 Windows COM；合法建模请求在非 Windows 或缺少 `pywin32` 时抛出 `CatiaBackendUnavailableError`，而不是泄漏裸 `ImportError`。当前发行包仍只声明为 Windows/CATIA 产品，平台无关核心不是独立发行包。
+CATIA Builder 在输入计划完成后才延迟加载会话实现。因此仅导入顶层包、Parser、Validation、Planner、`BladeBuildJob` 或坐标函数不会加载 Windows COM；合法建模请求在非 Windows 或缺少 `pywin32` 时抛出 `CatiaBackendUnavailableError`，而不是泄漏裸 `ImportError`。主 wheel 可以在 Linux 安装并执行这些无 CAD 路径，`pywin32` 只由 Windows marker 引入；当前最终建模能力仍只来自 Windows/CATIA。
 
 ## 单叶片建模流程
 
@@ -101,15 +110,17 @@ CATIA Builder 在输入计划完成后才延迟加载会话实现。因此仅导
 初始化器在计划阶段验证清单与资源摘要。`--with-examples` 选择入口及依赖，
 `--with-airfoil-library` 选择清单内全集，二者不会扫描或整体复制源码 `input/`。
 
-主 CLI 按显式路径、当前工作区、用户级配置和内置默认值发现一次配置，并把同一
-`ConfigManager` 传给子命令。配置相对路径始终由选中配置文件的位置决定，不随
-交互流程中的目录变化漂移。
+主 CLI 按显式路径、当前工作区、`autoblade` 用户目录、旧
+`catia-autoblade` 用户目录 fallback 和内置默认值发现一次配置，并把同一
+`ConfigManager` 传给子命令；新旧目录共存时只选择新目录。配置相对路径始终由
+选中配置文件的位置决定，不随交互流程中的目录变化漂移。
 
 配置 schema 独立于包版本。加载器先检查 `AppConfig.version`，再交给严格的
 Pydantic 模型；未知字段和未来版本不能被忽略。历史 schema 可在内存中兼容读取，
 但任何持久化前必须显式预览并应用迁移。迁移使用源文件 SHA-256 防止预览后的
-并发修改，先复制不覆盖的备份，再以同目录临时文件原子替换；输入和输出树不参与
-迁移。
+并发修改，先复制不覆盖的备份，再原子写入目标配置。旧用户目录迁移还会改写
+相对 input/output 根以保持实际解析路径，成功后移除旧活动配置并保留备份；输入
+和输出树本身不参与迁移。
 
 ## 几何约束
 
@@ -131,4 +142,7 @@ Pydantic 模型；未知字段和未来版本不能被忽略。历史 schema 可
 
 - 同一叶片暂不支持混合尖后缘与钝后缘翼型。
 - 尖后缘通过首尾坐标精确相等判断，没有浮点容差。
-- CATIA Adapter 内部仍直接使用动态 COM 对象；当前没有第二个 Builder，也没有对外承诺的通用 CAD 插件接口。
+- CATIA Adapter 内部仍直接使用动态 COM 对象；当前没有第二个 Builder，也没有
+  对外承诺的通用 CAD 插件接口。第二个真实后端已经成为已接受的 `0.3.0` 目标，
+  但只有完成[目标架构](architecture-target.md)和[实施计划](plans/autoblade-0.3.0.md)
+  的退出门槛后才能改写本条当前事实。

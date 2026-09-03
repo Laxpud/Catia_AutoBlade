@@ -3,10 +3,10 @@ import json
 
 import pytest
 
-from catia_autoblade.commands import initialize
-from catia_autoblade.config.manager import ConfigManager
-from catia_autoblade.core.input_plan import build_blade_input_plan
-from catia_autoblade.interactive import prompts
+from autoblade.commands import initialize
+from autoblade.config.manager import ConfigManager
+from autoblade.core.input_plan import build_blade_input_plan
+from autoblade.interactive import prompts
 
 
 def test_init_creates_external_workspace_with_optional_examples(

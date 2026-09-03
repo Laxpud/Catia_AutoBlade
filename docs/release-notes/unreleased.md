@@ -1,4 +1,4 @@
-# CATIA AutoBlade unreleased changes
+# AutoBlade unreleased changes
 
 These changes are not an approved artifact set and remain tied to the current
 development branch until a new package version and release record are created.
@@ -16,6 +16,12 @@ development branch until a new package version and release record are created.
 
 ## Breaking changes
 
+- renamed the distribution and Python namespace to `autoblade` with no
+  `catia_autoblade` shim; environments containing the legacy distribution now
+  fail with an explicit uninstall-first error;
+- moved the canonical user configuration directory to `autoblade`, with a
+  warning-only legacy fallback, new-directory precedence, and an explicit
+  preview/backup/apply migration that preserves resolved input/output roots;
 - renamed the user-visible `section_params` collection to `blade_sections`
   across workspace directories, CSV basenames, configuration, Python APIs,
   task models, scripts, and documentation;
@@ -29,6 +35,11 @@ development branch until a new package version and release record are created.
 
 ## Distribution boundary
 
+- updated wheel/sdist roots, console metadata, internal release artifact names,
+  and the release manifest identity to AutoBlade;
+- added a Linux check and clean non-editable wheel smoke covering CLI,
+  package/core import, Parser, Planner, resources, and the Windows-only
+  `pywin32` marker without claiming a Linux modeling backend;
 - unaudited `sc1095*`, `sd7032_sharp`, and `naca0012_sharp` repository inputs
   remain outside the wheel library;
 - the dense 1,000-point profile remains a maintainer regression asset;

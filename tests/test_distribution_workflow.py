@@ -30,9 +30,9 @@ def test_pyproject_declares_auditable_hatchling_manifests() -> None:
 @pytest.mark.parametrize(
     "name",
     [
-        "catia_autoblade/__pycache__/module.pyc",
+        "autoblade/__pycache__/module.pyc",
         "C:/private/customer.csv",
-        "catia_autoblade/output/model.CATPart",
+        "autoblade/output/model.CATPart",
     ],
 )
 def test_distribution_content_check_rejects_forbidden_paths(name: str) -> None:
@@ -116,3 +116,43 @@ def test_release_validation_record_rejects_residual_catia_process(
             "0.2.0",
             "abc123",
         )
+
+
+def test_internal_release_artifacts_use_autoblade_identity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dist_dir = tmp_path / "dist"
+    dist_dir.mkdir()
+    (dist_dir / "autoblade-0.2.0-py3-none-any.whl").write_bytes(b"wheel")
+    (dist_dir / "autoblade-0.2.0.tar.gz").write_bytes(b"sdist")
+    release_notes = tmp_path / "notes.md"
+    release_notes.write_text("# Notes\n", encoding="utf-8")
+    validation_record = tmp_path / "validation.json"
+    validation_record.write_text("{}\n", encoding="utf-8")
+
+    monkeypatch.setattr(prepare_internal_release, "_source_version", lambda: "0.2.0")
+    monkeypatch.setattr(
+        prepare_internal_release,
+        "_validate_clean_tagged_source",
+        lambda version: ("abc123", "v0.2.0"),
+    )
+    monkeypatch.setattr(prepare_internal_release, "validate", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        prepare_internal_release,
+        "_read_validation_record",
+        lambda *args: {"repository_check": "pass"},
+    )
+
+    manifest_path = prepare_internal_release.prepare_release(
+        dist_dir,
+        validation_record,
+        release_notes,
+    )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+    assert manifest_path.name == "autoblade-0.2.0-internal-release.json"
+    assert manifest["schema"] == "autoblade-internal-release/v1"
+    assert "autoblade-0.2.0-py3-none-any.whl" in manifest["sha256"]
+    assert "autoblade-0.2.0.tar.gz" in manifest["sha256"]
+    assert "autoblade-0.2.0-release-notes.md" in manifest["sha256"]

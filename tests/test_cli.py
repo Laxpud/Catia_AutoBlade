@@ -3,18 +3,18 @@ import pytest
 from click import unstyle
 from typer.testing import CliRunner
 
-from catia_autoblade import cli
-from catia_autoblade.commands import batch as batch_commands
-from catia_autoblade.commands import config as config_commands
-from catia_autoblade.commands import create as create_commands
-from catia_autoblade.commands import doctor as doctor_commands
-from catia_autoblade.commands import initialize as initialize_commands
-from catia_autoblade.commands import list as list_commands
-from catia_autoblade.commands import sweep as sweep_commands
-from catia_autoblade.config.manager import ConfigManager
-from catia_autoblade.config.settings import AppConfig
-from catia_autoblade.interactive import menu
-from catia_autoblade.interactive.prompts import PromptCancelled
+from autoblade import cli
+from autoblade.commands import batch as batch_commands
+from autoblade.commands import config as config_commands
+from autoblade.commands import create as create_commands
+from autoblade.commands import doctor as doctor_commands
+from autoblade.commands import initialize as initialize_commands
+from autoblade.commands import list as list_commands
+from autoblade.commands import sweep as sweep_commands
+from autoblade.config.manager import ConfigManager
+from autoblade.config.settings import AppConfig
+from autoblade.interactive import menu
+from autoblade.interactive.prompts import PromptCancelled
 
 
 runner = CliRunner()
@@ -28,7 +28,7 @@ def test_version_reports_package_version_without_opening_menu(monkeypatch) -> No
     result = runner.invoke(cli.app, ["--version"])
 
     assert result.exit_code == 0, result.output
-    assert result.stdout.strip() == "catia-autoblade 0.2.0"
+    assert result.stdout.strip() == "autoblade 0.2.0"
     assert called == []
 
 
@@ -277,7 +277,7 @@ def test_standalone_entrypoints_report_version(callback) -> None:
     result = runner.invoke(standalone_app, ["--version"])
 
     assert result.exit_code == 0, result.output
-    assert result.stdout.strip() == "catia-autoblade 0.2.0"
+    assert result.stdout.strip() == "autoblade 0.2.0"
 
 
 def test_global_explicit_config_is_forwarded_to_commands(
@@ -519,7 +519,7 @@ def test_main_menu_returns_after_action_until_exit(monkeypatch) -> None:
     actions = iter(["create", "exit"])
     calls = []
     monkeypatch.setattr(
-        "catia_autoblade.interactive.prompts.select_main_action",
+        "autoblade.interactive.prompts.select_main_action",
         lambda: next(actions),
     )
     monkeypatch.setattr(
@@ -537,7 +537,7 @@ def test_main_menu_cancel_returns_to_parent_menu(monkeypatch) -> None:
     actions = iter(["create", "list", "exit"])
     calls = []
     monkeypatch.setattr(
-        "catia_autoblade.interactive.prompts.select_main_action",
+        "autoblade.interactive.prompts.select_main_action",
         lambda: next(actions),
     )
 

@@ -2,9 +2,9 @@ from pathlib import Path
 
 import pytest
 
-from catia_autoblade.core.executor import execute_jobs
-from catia_autoblade.core.input_validation import InputValidationError
-from catia_autoblade.core.planner import plan_batch_jobs, plan_create_job
+from autoblade.core.executor import execute_jobs
+from autoblade.core.input_validation import InputValidationError
+from autoblade.core.planner import plan_batch_jobs, plan_create_job
 
 
 SHARP_AIRFOIL = """x,y,z

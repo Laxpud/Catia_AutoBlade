@@ -1,6 +1,6 @@
 # CLI 参考
 
-本文是 CATIA AutoBlade 命令行行为的唯一详细参考。输入字段见[输入数据格式](input-formats.md)，配置路径见[运行时配置](configuration.md)，命令职责的设计理由见[设计原则](design-principles.md)。
+本文是 AutoBlade 命令行行为的唯一详细参考。输入字段见[输入数据格式](input-formats.md)，配置路径见[运行时配置](configuration.md)，命令职责的设计理由见[设计原则](design-principles.md)。
 
 ## 入口与交互模式
 
@@ -14,7 +14,7 @@ uv run autoblade
 
 标准输入或输出不是 TTY 时，无参数调用不会等待输入，而是显示帮助并返回 2。自动化脚本应始终使用显式子命令。
 
-查看由 `src/catia_autoblade/__init__.py` 提供的安装版本：
+查看由 `src/autoblade/__init__.py` 提供的安装版本：
 
 ```powershell
 uv run autoblade --version

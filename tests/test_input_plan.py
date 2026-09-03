@@ -2,9 +2,9 @@ from pathlib import Path
 
 import pytest
 
-from catia_autoblade.core.create_blade import create_single_blade
-from catia_autoblade.core.input_plan import build_blade_input_plan
-from catia_autoblade.core.input_validation import (
+from autoblade.core.create_blade import create_single_blade
+from autoblade.core.input_plan import build_blade_input_plan
+from autoblade.core.input_validation import (
     InputValidationError,
     read_airfoil_csv,
 )

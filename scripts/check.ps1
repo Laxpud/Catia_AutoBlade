@@ -72,14 +72,14 @@ try {
     Invoke-UvStep -Name "Build wheel and sdist" -Arguments @("build", "--clear")
     if (-not $SkipInstalledSmoke) {
         $sourceVersion = (& $uvExecutable run --frozen python -c `
-            "from catia_autoblade import __version__; print(__version__)"
+            "from autoblade import __version__; print(__version__)"
         ).Trim()
         if ($LASTEXITCODE -ne 0) {
             throw "Read source version failed with exit code $LASTEXITCODE."
         }
         $wheel = @(
             Get-ChildItem -Path (Join-Path $projectRoot "dist") `
-                -Filter "catia_autoblade-$sourceVersion-*.whl"
+                -Filter "autoblade-$sourceVersion-*.whl"
         )
         if ($wheel.Count -ne 1) {
             throw "Expected exactly one wheel for installed smoke testing."

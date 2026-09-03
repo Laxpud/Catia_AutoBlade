@@ -6,14 +6,14 @@ from pathlib import Path
 
 import pytest
 
-from catia_autoblade.adapters.cad.catia import builder as catia_builder
-from catia_autoblade.adapters.cad.catia.errors import (
+from autoblade.adapters.cad.catia import builder as catia_builder
+from autoblade.adapters.cad.catia.errors import (
     CatiaBackendUnavailableError,
 )
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-CORE_DIR = PROJECT_ROOT / "src" / "catia_autoblade" / "core"
+CORE_DIR = PROJECT_ROOT / "src" / "autoblade" / "core"
 
 
 def test_core_modules_do_not_import_windows_com_packages() -> None:
@@ -43,8 +43,8 @@ def test_core_modules_do_not_import_windows_com_packages() -> None:
 def test_package_and_core_import_without_loading_windows_com() -> None:
     """在全新解释器中确认包入口、Parser 与 Planner 不触发 COM 导入。"""
     script = """
-import catia_autoblade
-from catia_autoblade.core import geometry, input_plan, input_validation, jobs, planner
+import autoblade
+from autoblade.core import geometry, input_plan, input_validation, jobs, planner
 import sys
 assert "pythoncom" not in sys.modules
 assert "win32com" not in sys.modules

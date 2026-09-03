@@ -5,8 +5,14 @@
 
 1. 顶层显式 `autoblade --config PATH ...`；
 2. 启动目录中的 `config.toml`；
-3. 用户级 `%APPDATA%\catia-autoblade\config.toml`；
-4. 内置默认值。
+3. 规范用户级 `%APPDATA%\autoblade\config.toml`（Linux 为
+   `$XDG_CONFIG_HOME/autoblade/config.toml`，未设置 XDG 时使用
+   `~/.config/autoblade/config.toml`）；
+4. 仅当规范路径不存在时，读取旧 `catia-autoblade/config.toml` 并发出迁移警告；
+5. 内置默认值。
+
+新旧用户目录同时存在时，新目录是唯一来源，旧目录不会合并或覆盖它。工作区配置
+仍高于两种用户级路径。
 
 显式相对配置路径按启动目录解析。内置默认值不会自动写入磁盘，其输入和输出
 相对路径仍以启动目录为基准。需要长期可编辑的工作区时，应使用 `autoblade init
@@ -61,7 +67,8 @@ blade_sections_dir = "blade_sections"
   `paths.blade_sections_dir`；
 - 对高于 `3.0.0` 的配置安全失败并要求升级程序；对未支持的旧版本同样失败。
 
-迁移器只实现真实存在的 `1.0.0/2.0.0 → 3.0.0` 路径，没有通用插件式迁移框架。
+迁移器只实现真实存在的 `1.0.0/2.0.0 → 3.0.0` schema 路径和旧产品用户目录到
+`autoblade` 目录的位置迁移，没有通用插件式迁移框架。
 
 ## 输出命名模板
 
@@ -88,10 +95,12 @@ uv run autoblade config migrate
 uv run autoblade config migrate --apply
 ```
 
-`config show` 显示来源、schema 和持久化值，而不是解析后的绝对路径，便于确认
-配置文件是否仍可跨目录移动。`config migrate` 默认只预览字段级变化；`--apply`
-先验证文件自预览后没有变化，创建 `config.toml.v<旧版本>.bak[.N]`，再通过同目录
-临时文件原子替换。旧默认值 `section_params` 会改为 `blade_sections`，但迁移不会
+`config show` 显示来源、schema 和持久化值，而不是解析后的绝对路径。`config
+migrate` 会预览 schema 字段与用户目录目标；`--apply` 先验证文件自预览后没有
+变化，再创建 `config.toml.v<旧版本>.bak[.N]`。schema 迁移在原路径原子替换；
+旧用户目录迁移原子写入规范路径，成功后移除旧活动 `config.toml` 并保留备份。
+迁移会把相对 `input_dir`/`output_dir` 改写为从新目录指向同一实际位置的值，避免
+静默切换数据根。旧默认值 `section_params` 会改为 `blade_sections`，但迁移不会
 读取、移动或覆盖翼型、桨叶截面定义、CATPart 或 STEP；旧工作区还需按
 [命名迁移记录](blade-sections-migration.md)显式改名目录和标准 CSV basename。
 

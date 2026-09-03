@@ -3,11 +3,11 @@ from pathlib import Path
 
 import pytest
 
-from catia_autoblade.commands.sweep import run_sweep_command
-from catia_autoblade.config.manager import ConfigManager
-from catia_autoblade.core.input_validation import InputValidationError
-from catia_autoblade.core.jobs import BuildResult
-from catia_autoblade.core.sweep import SweepPlan, SweepPlanner
+from autoblade.commands.sweep import run_sweep_command
+from autoblade.config.manager import ConfigManager
+from autoblade.core.input_validation import InputValidationError
+from autoblade.core.jobs import BuildResult
+from autoblade.core.sweep import SweepPlan, SweepPlanner
 
 
 SHARP_AIRFOIL = """x,y,z

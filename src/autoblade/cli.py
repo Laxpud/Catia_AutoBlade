@@ -8,7 +8,7 @@ import typer
 
 
 app = typer.Typer(
-    help="CATIA AutoBlade - Blade creation automation tool",
+    help="AutoBlade - Blade creation automation tool",
     invoke_without_command=True,
     no_args_is_help=False,
 )
@@ -62,7 +62,7 @@ def main(
         bool,
         typer.Option(
             "--version",
-            help="Show the installed CATIA AutoBlade version and exit.",
+            help="Show the installed AutoBlade version and exit.",
             is_eager=True,
         ),
     ] = False,
@@ -78,7 +78,7 @@ def main(
     if version:
         from . import __version__
 
-        typer.echo(f"catia-autoblade {__version__}")
+        typer.echo(f"autoblade {__version__}")
         raise typer.Exit()
     from .config.manager import ConfigManager
 
@@ -114,7 +114,7 @@ def create(
         bool,
         typer.Option(
             "--version",
-            help="Show the installed CATIA AutoBlade version and exit.",
+            help="Show the installed AutoBlade version and exit.",
             is_eager=True,
         ),
     ] = False,
@@ -123,7 +123,7 @@ def create(
     if command_version:
         from . import __version__
 
-        typer.echo(f"catia-autoblade {__version__}")
+        typer.echo(f"autoblade {__version__}")
         return
     from .commands.create import run_create_command
 
@@ -151,7 +151,7 @@ def batch(
         bool,
         typer.Option(
             "--version",
-            help="Show the installed CATIA AutoBlade version and exit.",
+            help="Show the installed AutoBlade version and exit.",
             is_eager=True,
         ),
     ] = False,
@@ -160,7 +160,7 @@ def batch(
     if command_version:
         from . import __version__
 
-        typer.echo(f"catia-autoblade {__version__}")
+        typer.echo(f"autoblade {__version__}")
         return
     from .commands.batch import run_batch_command
 

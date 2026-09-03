@@ -4,8 +4,8 @@ import sys
 
 import pytest
 
-from catia_autoblade.commands import doctor
-from catia_autoblade.config.manager import ConfigManager
+from autoblade.commands import doctor
+from autoblade.config.manager import ConfigManager
 
 
 def test_doctor_summary_is_copyable_and_warn_does_not_fail(capsys) -> None:

@@ -1,0 +1,221 @@
+# AutoBlade 0.3.0 多后端实施计划
+
+> **状态：活动计划。** 根 [`TODO.md`](../../TODO.md) 是唯一活动工作入口；本文
+> 保存跨模块实施顺序、阶段门禁、验证和回滚，不承担当前架构说明。目标边界见
+> [AutoBlade 0.3.0 目标架构](../architecture-target.md)，关键取舍见
+> [`docs/adr/`](../adr/)。
+
+## Outcome
+
+交付一个受控团队使用的 `0.3.0` 内部 preview wheel：产品规范身份为 AutoBlade，
+Windows/CATIA 继续工作且仍为默认 backend，Linux/Flatpak FreeCAD 1.1.3 能通过
+同一 `create`、`batch` 和 `sweep` 任务体系生成原生 FCStd 与 AP242DIS STEP，并
+满足双平台安装、真实 CAD、黄金几何和进程清理门禁。
+
+## 范围与非目标
+
+本计划包含：
+
+- distribution、Python namespace、用户配置目录和发布制品迁移；
+- 内部 CAD backend seam 与 backend-aware Planner/Job/Executor；
+- Flatpak FreeCADCmd Runner、进程监督、原生可重算模型和双制品事务；
+- 配置 schema v4、sweep manifest v3、CLI、doctor、dry-run 和失败快照；
+- 可公开 CATIA 黄金基线、Linux CI、双后端发布验证和当前文档切换。
+
+本计划不包含公共 PyPI、独立 EXE、公共第三方 backend API、Windows FreeCAD
+认证、原生 Linux FreeCADLauncher、并行建模、自动安装 CAD、完整 FreeCAD 输入
+参数化或任意用户编辑后的几何保证。
+
+## 依赖与治理边界
+
+| 依赖或决定 | 进入条件 | 责任边界 |
+| --- | --- | --- |
+| 首个 CATIA 黄金样例 | 阶段 2 可以先验证 FreeCAD 机制；进入阶段 3 前至少有一套获许可的输入和 CATIA STEP | 用户或指定工程责任人提供并确认来源 |
+| 完整黄金矩阵 | 阶段 4 和 `0.3.0` 发布前齐备 | 包括多钝翼型等当前仓库没有的参考结果 |
+| STEP precision 与几何公差 | 原型输出逐指标差异后批准 | 实现者提交数据和建议值，工程责任人批准，不能为通过测试自行放宽 |
+| GitHub 仓库改名 | 阶段 5 切换链接前完成 | 需要用户单独授权或亲自执行 |
+| CATIA 发布验证 | 发布候选 wheel 完成后执行 | 需要受支持的 Windows/CATIA 环境 |
+
+PyPI 名称注册、当前 checkout 移动、CATIA 基线批准和 Git commit 都不是执行本
+计划的隐含授权。
+
+## 全局执行规则
+
+- 阶段按顺序推进；当前阶段的退出条件未满足时，不把下一阶段标为进行中。
+- 每次只改当前阶段所需的接口和文档，不提前宣称目标能力已经可用。
+- 输入解析、领域校验、跨文件引用和输出冲突始终在 CAD 启动前完成。
+- 新后端失败必须显式暴露；禁止自动回退、静默几何近似或降低退出条件。
+- 非简单源码阶段完成时运行仓库统一检查；真实 CAD 门禁只能由对应显式 smoke
+  和记录证明。
+- 完成一个阶段后在本文记录最小可复查证据，并同步根 TODO 的 Current focus。
+
+## 阶段 0：设计与文档基线
+
+Outcome：把已确认的设计树变成可导航的术语、ADR、目标架构和活动计划，且不把
+目标态写成当前能力。
+
+- [x] 固定领域词汇与 AutoBlade/CAD backend/制品集/几何等价语义。
+- [x] 记录产品身份、进程边界、FreeCAD 原生模型和黄金基线 ADR。
+- [x] 区分 `0.2.0` current architecture 与 `0.3.0` target architecture。
+- [x] 将第二后端从条件性方向提升为有退出条件的 primary milestone。
+
+Exit gate：上述文档互相可达，历史归档未被改写，源码和当前能力说明未被提前
+迁移。证据是 [`CONTEXT.md`](../../CONTEXT.md)、[目标架构](../architecture-target.md)、
+[`docs/adr/`](../adr/) 和本文。
+
+## 阶段 1：产品身份与平台边界
+
+Outcome：代码库以 AutoBlade 为规范身份，在尚未启用 FreeCAD 建模时仍保持
+Windows/CATIA 行为，并能在 Linux 安装、导入和执行无 CAD 规划路径。
+
+- [x] 将 distribution 改为 `autoblade`，把源码 package 和全部内部 import 迁移为
+  `autoblade`，不保留 `catia_autoblade` shim。
+- [x] 保留 `autoblade`、`autoblade-create`、`autoblade-batch` 三个 console entry，
+  把产品级文本改为 AutoBlade，保留 backend 专属 CATIA 术语。
+- [x] 更新 Hatch 白名单、资源路径、版本唯一来源、锁文件、构建校验和内部发布
+  元数据；`uv.lock` 只能由工具同步。
+- [x] 使主 wheel 可在 Linux 安装，`pywin32` 继续仅由 Windows marker 引入；核心
+  import 和 Planner 不加载任一 CAD 运行时。
+- [x] 建立新 `autoblade` 用户配置目录、旧目录 fallback、显式迁移和“双目录时新
+  目录胜出”测试。
+- [x] 检测旧 `catia-autoblade` distribution 与新 wheel 共存并给出先卸载旧包的
+  明确迁移错误。
+
+验证状态（2026-09-03）：Linux 已运行 `bash scripts/check-linux.sh`，通过 151 项
+pytest、Ruff、`autoblade-0.2.0` wheel/sdist 构建、全新 CPython 3.14.4 非 editable
+安装、三个 console entry、Parser/Planner/mock 执行、资源、配置目录迁移、旧
+distribution 冲突和分发内容校验。Windows 的 `pwsh -File scripts/check.ps1` 与
+非 editable wheel smoke 尚未在 Windows 主机执行，因此阶段 1 Exit gate 尚未关闭，
+不得进入阶段 2。
+
+Exit gate：Windows 现有无真实 CATIA 检查和安装 smoke 通过；Linux 的全新环境能
+安装 wheel、导入核心、运行 help/version/Parser/Planner；版本输出、wheel/sdist
+根目录、资源和配置来源只使用新规范身份。此阶段不改 GitHub 远程和 checkout。
+
+Rollback：在尚未执行外部仓库改名或分发新 wheel 前恢复旧 distribution/package
+路径和构建清单；用户配置迁移只在显式 apply 后发生，并保留原文件备份。
+
+## 阶段 2：FreeCAD 几何可行性闸门
+
+Outcome：用最小、可丢弃的 headless Runner 证明目标原生模型在 FreeCAD 1.1.3
+可行，再决定是否允许正式集成继续。
+
+- [ ] 通过固定 Runner 和版本化 JSON，把一个已闭合 SI 单位任务传入 Flatpak
+  `FreeCADCmd`；不重新解析 CSV，不依赖 `if __name__ == "__main__"`。
+- [ ] 以原生 Sketch 表达 upper/lower 插值 B-spline，在尖尾缘共享顶点，在钝尾缘
+  增加显式直线闭合边；不删点、不移动点、不重采样。
+- [ ] 使用 `Part::Loft(Solid=True)` 生成 `BladeSolid`，创建冻结的
+  `ReferenceOnly` 前后缘参考，并只显示最终实体。
+- [ ] 保存 FCStd，关闭重开后执行无修改 `Document.recompute()`，验证仍为有效单
+  solid；导出单位 mm 的 AP242DIS STEP 并验证文件 schema。
+- [ ] 覆盖单尖、单钝、300/253/249 点多翼型和明显变换；用 1000 点翼型记录耗时
+  与峰值内存，不设置尚无证据的性能 SLA。
+- [ ] 至少取得一套获许可 CATIA STEP，输出几何差异报告和待批准的 precision/
+  tolerance 建议。
+
+Exit gate：所有原生依赖、尖/钝拓扑、不同点数、保存重开重算和至少一个 CATIA
+对照均通过；不存在静态 Shape、FeaturePython 或用户偏好污染。形成明确 GO 记录
+后才能进入阶段 3。
+
+No-go：任一关键契约失败时停止，不先完成 CLI/config 基础设施；保留事实报告并
+重新讨论 ADR-0003。禁止自动钝化、重采样或改成静态模型来制造通过状态。
+
+## 阶段 3：完整 backend 集成
+
+Outcome：FreeCAD 作为内部正式 backend 接入现有单任务执行链，三个建模命令及其
+规划、错误和制品语义完整可用。
+
+- [ ] 定义内部类型化 backend factory、backend-specific artifact plan 和结构化错误；
+  不公开动态插件发现 API。
+- [ ] 让 CLI/config 在 Planner 前确定 backend，使输出冲突、预览和 dry-run 使用
+  `.CATPart + .stp` 或 `.FCStd + .stp` 的真实路径。
+- [ ] 实现配置 schema `3.0.0 → 4.0.0` 显式迁移、命令级 `--backend`、900 秒默认
+  timeout 与 CLI 覆盖；默认 backend 继续为 CATIA。
+- [ ] 实现每任务独立 FreeCADCmd 进程、严格 Runner 协议、stdout/stderr 捕获、
+  timeout、Ctrl-C、owned-process 清理和未认证版本警告。
+- [ ] 实现目标文件系统内暂存、FCStd/STEP 验证、逻辑事务发布和部分发布回滚；
+  任一目标存在都走完整冲突流程。
+- [ ] 实现 `--keep-failed-model`，并将 `--keep-failed-part` 保留为弃用 alias；timeout
+  只在已有可识别 FCStd 时尽力保留。
+- [ ] 将 sweep manifest 升为 v3，记录 backend 和 typed artifacts，不保留 v2
+  `output_files`；create、batch、sweep 不能在一次调用中混用 backend。
+- [ ] 使 doctor 按选定 backend 检查，FreeCAD 路径执行最小 headless 创建/重开
+  探针；`--all` 中任一 backend FAIL 都返回非零。
+- [ ] 保持 batch/sweep 串行且每任务隔离；任务失败后继续，用户中断则停止整个调用。
+
+Exit gate：三个命令的普通、交互、dry-run、覆盖、失败继续和中断路径都有 mock
+测试；本机 Flatpak 1.1.3 能通过 create/batch/sweep 真实 smoke；任何 return code
+为零但结果 JSON 或双制品缺失的情形都判定失败；用户现有 CATIA/FreeCAD 会话不受
+影响。
+
+Rollback：在尚未发布 `0.3.0` 前可以移除 FreeCAD backend 路由并恢复 schema v3/
+manifest v2 代码，但不得把已经显式迁移的用户配置无备份降级；回滚说明必须指出
+如何恢复迁移前备份。
+
+## 阶段 4：黄金回归与 Linux CI
+
+Outcome：把 FreeCAD 从本机成功提升为可重复、可审计的 Linux preview 支持。
+
+- [ ] 建立专用公开黄金夹具目录，只允许许可清晰的输入、CATIA STEP、manifest 和
+  预计算指标；为全局忽略和构建排除设置精确例外，夹具不进入 wheel。
+- [ ] 覆盖单尖、单钝、不同点数多尖、多钝以及明显旋转/缩放/平移；1000 点案例
+  作为稳定性/性能 smoke。
+- [ ] 实现 STEP 重开、单 solid、体积、包围盒、质心、站位截面和表面最大/RMS
+  偏差比较；不比较二进制、面数、边数或拓扑编号。
+- [ ] 把经批准的默认公差和有理由的逐案例覆盖写入 manifest；基线更新必须经过
+  显式 CATIA 生成、SHA-256 校验和人工批准。
+- [ ] 增加独立 Linux FreeCAD CI job；初期 non-blocking，稳定后对 backend、核心
+  几何、输入拓扑和 Runner 相关变更设为 required，并定时运行完整套件。
+- [ ] 固定 CI 认证环境为 Flatpak FreeCAD 1.1.3，记录典型、89 截面和 1000 点案例
+  的耗时与峰值内存。
+
+Exit gate：完整公开矩阵、许可、摘要、公差批准和 Linux CI 均可从干净 checkout
+复现；FreeCAD 测试不能更新自己的黄金结果；相关变更 required 检查稳定通过。
+
+Rollback：CI 未稳定前只允许从 non-blocking 回退并记录原因；一旦被 `0.3.0`
+支持声明引用，不得为发布临时跳过黄金检查，必须修复或撤回该支持声明。
+
+## 阶段 5：当前文档切换与 0.3.0 发布
+
+Outcome：只有实现和证据完成后，才把 current documentation、支持矩阵和内部制品
+切换到 AutoBlade 双后端事实。
+
+- [ ] 更新 README 与中文镜像、AGENTS、current architecture、design principles、
+  CLI、配置、安装、测试、分发和发布文档；保留历史归档及 `v0.2.0` release notes
+  的原名称。
+- [ ] 将唯一版本源迁移到 `src/autoblade/__init__.py` 并设为 `0.3.0`；整理
+  `release-notes/unreleased.md` 和 `v0.3.0` 正式说明。
+- [ ] 更新内部制品为 `autoblade-0.3.0...`，发布 manifest 使用
+  `autoblade-internal-release/v2`，并检查旧 distribution 不共存。
+- [ ] 在干净标签提交上通过 Windows 常规检查、Linux 常规检查和两个平台的 wheel
+  安装/CLI smoke。
+- [ ] 使用候选 wheel 完成真实 Windows/CATIA 与 Linux/FreeCAD 1.1.3 回归，检查
+  native model、STEP、特征树、黄金几何和零残留 owned CAD 进程。
+- [ ] 在获得单独授权并实际完成 GitHub 仓库改名后更新绝对仓库 URL；不注册或发布
+  PyPI，不移动当前 checkout。
+
+Exit gate：根 TODO 的全部 milestone exit criteria 都有可复查证据，wheel/sdist、
+release notes、SHA-256、验证记录和内部 manifest 作为一个制品集交付。任何缺少
+真实 CAD 或黄金证据的构建仍是开发产物，不得标为 `0.3.0` preview release。
+
+Rollback：标签前修复并重新运行全部门禁；标签后不得替换同版本制品，必须递增
+patch。已分发版本失败时停止分发、恢复上一批准 wheel，并按配置备份恢复；远程
+仓库改名和用户 checkout 由其独立流程回滚。
+
+## 验证矩阵
+
+| 层级 | 环境 | 必须证明 |
+| --- | --- | --- |
+| 纯 Python | Windows 与 Linux | import 边界、输入契约、backend 选择、Planner、manifest、配置迁移和错误映射 |
+| Fake CAD | 默认 pytest | COM/进程调用顺序、timeout、中断、失败继续、暂存/回滚和制品校验 |
+| FreeCAD 原型 | Linux + Flatpak 1.1.3 | 原生依赖、尖/钝、不同点数、保存重开重算、AP242DIS 和性能证据 |
+| FreeCAD 黄金回归 | Linux + Flatpak 1.1.3 | 全案例工程公差、可重复性和无 owned-process 残留 |
+| CATIA 回归 | Windows + CATIA P3 V5-6R2020 | 既有 CATPart/STEP 行为、黄金基线来源和无新增 CNEXT |
+| 安装与发布 | 两个平台的干净环境 | wheel/sdist 身份、入口、依赖 marker、资源、文档、摘要和发布 manifest |
+
+## Plan 生命周期
+
+里程碑完成后，把目标架构中已经实现的部分合并进 current architecture，把最终
+支持事实写入现有技术文档，并将本文与 TODO 的详细证据按仓库规则归档到
+`docs/archive/`。未实现的 NativeLauncher、Windows FreeCAD、公共 PyPI、独立 EXE
+和公共插件 API 留在 backlog，不得借归档隐藏。

@@ -47,6 +47,7 @@ class ConfigMigrationPlan:
     """经过验证、可在原文件未变化时安全应用的迁移计划。"""
 
     config_file: Path
+    target_config_file: Path
     source_version: str
     target_version: str
     changes: tuple[ConfigMigrationChange, ...]
@@ -66,7 +67,8 @@ class ConfigManager:
     """发现、校验和加载配置，并安全处理持久化 schema。"""
 
     CONFIG_FILE = Path("config.toml")
-    USER_CONFIG_DIR = "catia-autoblade"
+    USER_CONFIG_DIR = "autoblade"
+    LEGACY_USER_CONFIG_DIR = "catia-autoblade"
     CURRENT_SCHEMA_VERSION = CURRENT_CONFIG_SCHEMA_VERSION
     LEGACY_SCHEMA_VERSIONS = frozenset(
         {
@@ -86,17 +88,24 @@ class ConfigManager:
         config_file: str | Path | None = None,
         *,
         source_kind: str | None = None,
+        migration_target_file: str | Path | None = None,
     ) -> None:
         if config_file is None:
             discovered = self.discover()
             self.config_file = discovered.config_file
             self.source = discovered.source
+            self._migration_target_file = discovered._migration_target_file
             return
 
         # 相对配置文件名以创建管理器时的工作目录为基准；先固化为绝对路径，
         # 后续即使交互流程改变工作目录，配置解析基准也不会漂移。
         self.config_file = Path(config_file).expanduser().resolve()
         self.source = ConfigSource(source_kind or "explicit", self.config_file)
+        self._migration_target_file = (
+            Path(migration_target_file).expanduser().resolve()
+            if migration_target_file is not None
+            else None
+        )
 
     @classmethod
     def discover(
@@ -105,8 +114,9 @@ class ConfigManager:
         *,
         working_dir: str | Path | None = None,
         user_config_file: str | Path | None = None,
+        legacy_user_config_file: str | Path | None = None,
     ) -> ConfigManager:
-        """按显式路径、当前工作区、用户级配置、内置默认值依次发现。"""
+        """按显式路径、工作区、新用户目录、旧目录 fallback、默认值发现。"""
         base_dir = Path(working_dir or Path.cwd()).expanduser().resolve()
         if explicit_config is not None:
             candidate = Path(explicit_config).expanduser()
@@ -123,6 +133,28 @@ class ConfigManager:
         ).expanduser().resolve()
         if user_config.is_file():
             return cls(user_config, source_kind="user")
+
+        # 测试或嵌入调用显式覆盖新用户路径时，不应意外读取真实主目录中的旧配置；
+        # 调用方若要验证 fallback，必须同时传入对应的旧路径。
+        legacy_user_config = None
+        if legacy_user_config_file is not None:
+            legacy_user_config = Path(legacy_user_config_file).expanduser().resolve()
+        elif user_config_file is None:
+            legacy_user_config = cls.default_legacy_user_config_file().resolve()
+        if legacy_user_config is not None and legacy_user_config.is_file():
+            warnings.warn(
+                "Using legacy user configuration at "
+                f"{legacy_user_config} because the canonical AutoBlade path "
+                f"{user_config} does not exist. Run 'autoblade config migrate' "
+                "to preview the location migration.",
+                ConfigMigrationWarning,
+                stacklevel=2,
+            )
+            return cls(
+                legacy_user_config,
+                source_kind="legacy-user",
+                migration_target_file=user_config,
+            )
 
         # 内置默认路径以启动目录为基准，但不会在那里创建 config.toml；只有
         # init、config set/reset/migrate 等显式写命令能够持久化用户文件。
@@ -141,10 +173,25 @@ class ConfigManager:
             )
         return base_dir / cls.USER_CONFIG_DIR / cls.CONFIG_FILE
 
+    @classmethod
+    def default_legacy_user_config_file(cls) -> Path:
+        """返回旧产品目录中的用户配置路径，不创建或修改任何文件。"""
+        if os.name == "nt":
+            base_dir = Path(
+                os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming")
+            )
+        else:
+            base_dir = Path(
+                os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")
+            )
+        return base_dir / cls.LEGACY_USER_CONFIG_DIR / cls.CONFIG_FILE
+
     @property
     def source_description(self) -> str:
         if self.source.kind == "defaults":
             return f"built-in defaults (base: {self.config_file.parent})"
+        if self.source.kind == "legacy-user":
+            return f"legacy user fallback: {self.config_file}"
         return f"{self.source.kind}: {self.config_file}"
 
     def load(self) -> AppConfig:
@@ -203,10 +250,10 @@ class ConfigManager:
     def save(self, config: AppConfig) -> None:
         """原子保存当前 schema；旧配置必须先显式迁移并生成备份。"""
         if self.config_file.exists():
-            document, raw_bytes = self._read_document()
-            if self._plan_document_migration(document, raw_bytes) is not None:
+            if self.plan_migration() is not None:
                 raise ConfigMigrationRequiredError(
-                    "Configuration uses an older schema. Run "
+                    "Configuration requires an explicit schema or location "
+                    "migration. Run "
                     "'autoblade config migrate' before changing it."
                 )
         data = config.model_dump(mode="json")
@@ -221,19 +268,28 @@ class ConfigManager:
         self.save(config)
 
     def plan_migration(self) -> ConfigMigrationPlan | None:
-        """返回真实旧 schema 的迁移预览；当前 schema 返回 ``None``。"""
+        """返回真实 schema/用户目录迁移预览；无需迁移时返回 ``None``。"""
         if not self.config_file.is_file():
             raise FileNotFoundError(
                 f"Configuration file does not exist: {self.config_file}"
             )
         document, raw_bytes = self._read_document()
-        return self._plan_document_migration(document, raw_bytes)
+        return self._plan_document_migration(
+            document,
+            raw_bytes,
+            target_config_file=self._migration_target_file,
+        )
 
     def apply_migration(self, plan: ConfigMigrationPlan) -> Path:
         """备份原文件并原子应用仍然有效的迁移计划。"""
         if plan.config_file != self.config_file:
             raise ConfigCompatibilityError(
                 "Migration plan belongs to a different configuration file."
+            )
+        expected_target = self._migration_target_file or self.config_file
+        if plan.target_config_file != expected_target:
+            raise ConfigCompatibilityError(
+                "Migration plan targets a different configuration location."
             )
         current_bytes = self.config_file.read_bytes()
         current_digest = hashlib.sha256(current_bytes).hexdigest()
@@ -242,13 +298,39 @@ class ConfigManager:
                 "Configuration changed after the migration preview; preview it again."
             )
 
+        target_file = plan.target_config_file
+        moves_location = target_file != self.config_file
+        if moves_location and target_file.exists():
+            raise ConfigCompatibilityError(
+                "Canonical configuration appeared after the migration preview: "
+                f"{target_file}. Refusing to overwrite it."
+            )
+
         backup = self._next_backup_path(plan.source_version)
         shutil.copy2(self.config_file, backup)
         try:
-            self._atomic_write_text(plan.migrated_text)
-        except Exception:
-            # 原文件仍由原子替换保护；如果写入失败，保留备份用于人工恢复。
+            self._atomic_write_text(plan.migrated_text, target_file=target_file)
+            if moves_location:
+                # 目标文件已经完整落盘且备份已存在，最后才移除旧活动文件。这样任一
+                # 前置步骤失败时，旧目录仍是可读取的唯一配置来源。
+                self.config_file.unlink()
+        except Exception as error:
+            # 跨目录无法依赖一次原子 rename；若旧文件移除失败，撤销刚创建的新文件，
+            # 避免留下两份活动配置。备份始终保留，供人工恢复和审计。
+            if moves_location and target_file.exists():
+                try:
+                    target_file.unlink()
+                except OSError as cleanup_error:
+                    error.add_note(
+                        "Failed to remove the partially migrated canonical "
+                        f"configuration: {cleanup_error}"
+                    )
             raise
+
+        if moves_location:
+            self.config_file = target_file
+            self.source = ConfigSource("user", target_file)
+            self._migration_target_file = None
         return backup
 
     def _read_document(self) -> tuple[tomlkit.TOMLDocument, bytes]:
@@ -265,36 +347,43 @@ class ConfigManager:
         self,
         document: tomlkit.TOMLDocument,
         raw_bytes: bytes,
+        *,
+        target_config_file: Path | None = None,
     ) -> ConfigMigrationPlan | None:
         source_version = str(document.get("version", "unversioned"))
+        target_file = target_config_file or self.config_file
+        moves_location = target_file != self.config_file
         if source_version == self.CURRENT_SCHEMA_VERSION:
             self._validate_document(document)
-            return None
-
-        if source_version not in self.LEGACY_SCHEMA_VERSIONS:
-            self._raise_unsupported_version(source_version)
-
-        migrated = tomlkit.parse(tomlkit.dumps(document))
-        changes: list[ConfigMigrationChange] = []
-        if source_version == "unversioned":
-            changes.append(
-                ConfigMigrationChange(
-                    "version",
-                    "<missing>",
-                    self.CURRENT_SCHEMA_VERSION,
-                    "Record the configuration schema explicitly.",
-                )
-            )
+            if not moves_location:
+                return None
+            migrated = tomlkit.parse(tomlkit.dumps(document))
+            changes: list[ConfigMigrationChange] = []
         else:
-            changes.append(
-                ConfigMigrationChange(
-                    "version",
-                    source_version,
-                    self.CURRENT_SCHEMA_VERSION,
-                    "Upgrade to the current configuration schema.",
+            if source_version not in self.LEGACY_SCHEMA_VERSIONS:
+                self._raise_unsupported_version(source_version)
+
+            migrated = tomlkit.parse(tomlkit.dumps(document))
+            changes = []
+            if source_version == "unversioned":
+                changes.append(
+                    ConfigMigrationChange(
+                        "version",
+                        "<missing>",
+                        self.CURRENT_SCHEMA_VERSION,
+                        "Record the configuration schema explicitly.",
+                    )
                 )
-            )
-        migrated["version"] = self.CURRENT_SCHEMA_VERSION
+            else:
+                changes.append(
+                    ConfigMigrationChange(
+                        "version",
+                        source_version,
+                        self.CURRENT_SCHEMA_VERSION,
+                        "Upgrade to the current configuration schema.",
+                    )
+                )
+            migrated["version"] = self.CURRENT_SCHEMA_VERSION
 
         # 1. schema 3.0.0 将用户可见集合统一命名为 blade_sections。旧默认
         #    目录同步改名；自定义目录值只改配置键，不猜测或移动用户数据。
@@ -302,7 +391,10 @@ class ConfigManager:
         #    input_dir 为基准拼接。只剥离与 input_dir 完全相同的前缀，绝对路径、
         #    自定义同级路径以及用户的输出命名模板都保持原样。
         paths = migrated.get("paths")
-        if isinstance(paths, Mapping):
+        if source_version != self.CURRENT_SCHEMA_VERSION and isinstance(
+            paths,
+            Mapping,
+        ):
             input_dir = str(paths.get("input_dir", "input"))
             if "section_params_dir" in paths:
                 if "blade_sections_dir" in paths:
@@ -342,15 +434,75 @@ class ConfigManager:
                         )
                     )
 
+        if moves_location:
+            self._preserve_location_relative_roots(
+                migrated,
+                target_file,
+                changes,
+            )
+            changes.append(
+                ConfigMigrationChange(
+                    "config_file",
+                    str(self.config_file),
+                    str(target_file),
+                    "Move the user configuration to the canonical AutoBlade directory.",
+                )
+            )
+
         self._validate_document(migrated)
         return ConfigMigrationPlan(
             config_file=self.config_file,
+            target_config_file=target_file,
             source_version=source_version,
             target_version=self.CURRENT_SCHEMA_VERSION,
             changes=tuple(changes),
             original_sha256=hashlib.sha256(raw_bytes).hexdigest(),
             migrated_text=tomlkit.dumps(migrated),
         )
+
+    def _preserve_location_relative_roots(
+        self,
+        document: tomlkit.TOMLDocument,
+        target_file: Path,
+        changes: list[ConfigMigrationChange],
+    ) -> None:
+        """迁移配置文件位置时保持 input/output 的实际解析目录不变。
+
+        用户级配置中的 ``input_dir`` 和 ``output_dir`` 以配置文件目录为基准。只把
+        TOML 移到新产品目录会悄悄切换输入和输出位置，因此迁移计划会把相对根路径
+        改写为相对于新目录、但仍指向旧实际目录的值。专用输入子目录继续相对于
+        ``input_dir`` 解析，无需重复改写。
+        """
+        paths = document.get("paths")
+        if not isinstance(paths, Mapping):
+            paths = tomlkit.table()
+            document["paths"] = paths
+
+        for field, default in (
+            ("input_dir", "input"),
+            ("output_dir", "output"),
+        ):
+            before = str(paths.get(field, default))
+            candidate = Path(before).expanduser()
+            if candidate.is_absolute():
+                continue
+            resolved_before = (self.config_file.parent / candidate).resolve()
+            try:
+                after = os.path.relpath(resolved_before, target_file.parent)
+            except ValueError:
+                # Windows 不同盘符间不存在相对路径；使用绝对路径仍能保持解析结果。
+                after = str(resolved_before)
+            if after == before and field in paths:
+                continue
+            paths[field] = after
+            changes.append(
+                ConfigMigrationChange(
+                    f"paths.{field}",
+                    before,
+                    after,
+                    "Preserve the resolved directory after moving config.toml.",
+                )
+            )
 
     def _validate_document(self, document: Mapping[str, Any]) -> AppConfig:
         deprecated = [
@@ -398,7 +550,7 @@ class ConfigManager:
         if candidate is not None and current is not None and candidate > current:
             raise ConfigCompatibilityError(
                 f"Configuration schema {source_version} is newer than supported "
-                f"schema {self.CURRENT_SCHEMA_VERSION}; upgrade CATIA AutoBlade."
+                f"schema {self.CURRENT_SCHEMA_VERSION}; upgrade AutoBlade."
             )
         raise ConfigCompatibilityError(
             f"Unsupported configuration schema {source_version!r}; supported "
@@ -456,14 +608,20 @@ class ConfigManager:
                 return candidate
             index += 1
 
-    def _atomic_write_text(self, content: str) -> None:
-        self.config_file.parent.mkdir(parents=True, exist_ok=True)
-        temporary = self.config_file.with_name(
-            f".{self.config_file.name}.{uuid4().hex}.tmp"
+    def _atomic_write_text(
+        self,
+        content: str,
+        *,
+        target_file: Path | None = None,
+    ) -> None:
+        destination = target_file or self.config_file
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        temporary = destination.with_name(
+            f".{destination.name}.{uuid4().hex}.tmp"
         )
         try:
             temporary.write_text(content, encoding="utf-8", newline="\n")
-            os.replace(temporary, self.config_file)
+            os.replace(temporary, destination)
         finally:
             if temporary.exists():
                 temporary.unlink()

@@ -3,8 +3,8 @@ from unittest.mock import Mock
 
 import pytest
 
-from catia_autoblade.adapters.cad.catia import builder as create_module
-from catia_autoblade.core.input_plan import AirfoilInput, BladeInputPlan
+from autoblade.adapters.cad.catia import builder as create_module
+from autoblade.core.input_plan import AirfoilInput, BladeInputPlan
 
 
 def test_multi_airfoil_geometry_is_created_once_and_selected_by_section(

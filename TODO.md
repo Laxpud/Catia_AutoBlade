@@ -1,36 +1,95 @@
 # 项目任务清单
 
-本文件只记录尚未完成的活动工作、优先级和可验证的完成标准。已完成的计划见 [`docs/archive/`](docs/archive/)，其中包括[截至 0.1.1 的里程碑](docs/archive/milestones-through-0.1.1.md)、[`v0.2.0` 内部 preview wheel 里程碑](docs/archive/internal-preview-wheel-0.2.0.md)、[显式参数扫描 `sweep` 里程碑](docs/archive/explicit-parameter-sweep.md)和[真实示例与内置翼型目录里程碑](docs/archive/real-example-and-airfoil-library.md)；稳定技术契约见 [`docs/index.md`](docs/index.md)。
+本文件是唯一活动工作入口，只记录已承诺里程碑、当前焦点、阻塞项和可验证退出
+条件。跨模块实施细节由 [`docs/plans/`](docs/plans/) 维护，稳定技术契约见
+[`docs/index.md`](docs/index.md)，已完成计划见 [`docs/archive/`](docs/archive/)。
 
 ## 执行与维护规则
 
-- 默认从当前里程碑中第一个未完成任务开始，除非用户指定其他任务。
-- 任务的全部验收条件满足后，标记为 `[x]`，并记录完成日期和验证证据；部分完成时保持 `[ ]`。
-- 当前里程碑的任务和完成条件全部通过后，将其归档到 `docs/archive/`，并把下一里程碑提升为当前里程碑。
-- 验证不足时不得标记完成，也不得降低验收条件。
+- 用户明确指定的工作优先；否则执行 primary milestone 的 Current focus。
+- Current focus 尚未通过其阶段 gate 时，不提前推进后续阶段。
+- 任务只有在全部验收条件满足并记录可复查证据后才能标记 `[x]`；部分完成保持
+  `[ ]`，不得通过删除或弱化退出条件制造完成状态。
+- 复杂实施步骤、验证和回滚只在对应 Plan 中维护；本文件不复制第二套 checklist。
+- 里程碑完成后，把持久事实写回技术文档，将详细记录归档到 `docs/archive/`，再从
+  backlog 或用户新指令中提升下一项工作。
 
-## 当前状态（2026-08-12）
+## 当前状态（2026-09-03）
 
-- 单翼型、展向多翼型、`create`/`batch`、Planner/Executor、CATIA Adapter、COM 清理和无 CATIA 自动化测试基线均已完成。
-- `v0.2.0` 内部 preview wheel 已在标签提交 `1d479ff84a9b8e68abfa830a64cd37f42a4f6ce1` 上完成全量检查、非 editable 安装冒烟和真实 CATIA 回归，并生成版本说明、验证记录、SHA-256 与内部发布清单。
-- 显式参数扫描 `sweep` 已在提交 `ba7e647` 完成，具备稳定 Cartesian product、JSON 清单和无 CATIA dry-run；提交后的干净工作区通过 136 项测试、Ruff、构建、安装冒烟和分发校验。
-- 真实示例与内置翼型目录里程碑已完成；来源授权、实现范围、命名评估和验证证据见[归档记录](docs/archive/real-example-and-airfoil-library.md)。
-- 用户确认项目尚未大规模使用后，已把用户可见集合从 `section_params` 直接迁移为 `blade_sections`；当前配置 schema 为 `3.0.0`，`sweep` 清单 schema 为 version 2，并通过 140 项测试、Ruff、构建、隔离安装冒烟和分发校验。破坏性边界和旧工作区操作见[命名迁移记录](docs/blade-sections-migration.md)。
-- 当前没有无条件活动里程碑。公共 PyPI、独立 EXE 和第二 CAD 后端仍不在当前范围内；以下方向只有在对应触发条件成立后才提升为当前里程碑。
+- `0.2.0` 的单/多翼型、`create`/`batch`/`sweep`、CATIA Adapter、配置 schema
+  `3.0.0`、sweep manifest v2 和内部 preview wheel 流程已经完成；证据见下方
+  Recently completed。
+- 用户已经确认 AutoBlade 多后端设计树，并把第二个真实 CAD 后端从条件性方向
+  提升为当前承诺。
+- 目标架构、ADR 和实施计划已经建立；阶段 1 的 distribution、Python namespace、
+  配置目录和 Linux 无 CAD 路径已实现并通过本机 gate，Windows 安装 gate 尚待
+  执行，FreeCAD 仍不是当前版本能力。
+- 本机已只读验证 Flatpak `org.freecad.FreeCAD` 的 headless 版本入口返回 FreeCAD
+  1.1.3；这不替代几何原型、黄金回归或发布证据。
 
-## 当前计划：条件性长期方向
+## Primary milestone：AutoBlade 0.3.0 多后端内部 preview
 
-- [ ] 仅在确认无 Python 用户的真实需求后评估独立 Windows 可执行程序。
-  - 验收：比较 PyInstaller 与 Nuitka，优先验证可诊断的 one-folder 原型及 `pythoncom`、`pywintypes`、`win32com.client`、Questionary 和 Typer 资源完整性。
-  - 验收：配置和输入继续作为外部工作区管理，并在没有开发环境的目标 CATIA 机器上验证安装、建模、升级、卸载、杀毒软件影响和可选代码签名。
+Outcome：把产品规范身份迁移为 AutoBlade，保持 Windows/CATIA 既有行为，并在
+Linux/Flatpak FreeCAD 1.1.3 上通过同一任务体系生成可重算 FCStd 和 AP242DIS
+STEP，最终以一个经过双平台、双 CAD 和黄金几何验证的内部 `0.3.0` 制品集交付。
 
-- [ ] 仅在出现第二个真实建模后端需求时抽象公共 Builder 接口并评估独立分包。
-  - 候选方向包括 NX、FreeCAD、OpenCascade 或直接网格输出；当前不创建空 Adapter、插件系统或过早稳定的公共 CAD API。
-  - 验收：新后端复用现有已校验任务和后端无关几何契约，平台特有能力保留在各自 Adapter 内。
-  - 验收：第二后端落地后再评估平台无关核心包、`catia-autoblade` 与其他 Adapter 包的依赖和发布边界。
+权威设计与执行入口：
 
-## 维护规则
+- [领域词汇](CONTEXT.md)
+- [目标架构](docs/architecture-target.md)
+- [实施计划](docs/plans/autoblade-0.3.0.md)
+- [架构决策](docs/adr/)
 
-- 完成任务时将其标记为 `[x]`，补充完成日期和可复查证据，例如测试、产物检查或真实 CATIA 记录。
-- 一个里程碑全部完成后，将详细记录移入 `docs/archive/`，根 `TODO.md` 只保留简短状态和下一阶段工作。
-- 新任务必须给出可验证的验收条件；稳定设计说明进入 `docs/`，不要在 TODO 中长期复制实现细节。
+Current focus：完成 [`0.3.0` 实施计划](docs/plans/autoblade-0.3.0.md)阶段 1
+“产品身份与平台边界”的 Windows gate。实现项和 Linux gate 已完成；在 Windows
+运行 `pwsh -File scripts/check.ps1` 并通过非 editable wheel smoke 后才能进入阶段 2。
+
+Dependencies：
+
+- 阶段 2 可以先用仓库公开输入验证 FreeCAD 机制；进入完整 backend 集成前，用户
+  或指定工程责任人必须提供至少一套许可清晰的 CATIA STEP 基线。
+- `0.3.0` 发布前必须补齐单尖、单钝、不同点数多尖、多钝和明显变换的公开黄金
+  矩阵，并批准实测 STEP precision 与几何公差。
+- GitHub 仓库改名、PyPI 名称注册、checkout 移动、CATIA 基线批准和 Git commit
+  均需要独立授权，不是本 milestone 的隐含操作权限。
+
+Exit criteria：
+
+- [ ] distribution、Python namespace 和规范品牌均为 AutoBlade/`autoblade`；旧
+  distribution 不共存，配置 v3→v4 和旧配置目录迁移可预览、备份和回滚。
+- [ ] Windows/CATIA 仍是默认 backend，既有输入、命令、CATPart/STEP、真实 CATIA
+  会话所有权和零新增 CNEXT 回归全部通过。
+- [ ] Linux/Flatpak FreeCAD 1.1.3 支持 `create`、`batch`、`sweep`、dry-run、doctor、
+  manifest v3、失败快照和每任务隔离，成功产出完整 `.FCStd + .stp` 制品集。
+- [ ] FreeCAD 使用标准原生 Sketch→Loft/Solid 依赖，覆盖不同点数与尖/钝尾缘，
+  FCStd 保存重开后可无修改 recompute，失败时不静默重采样、钝化或降级静态 Shape。
+- [ ] 公开 CATIA 黄金矩阵、许可、摘要、工程公差、几何比较和 Linux required CI
+  均可从干净 checkout 复现，1000 点样例具有性能记录。
+- [ ] Windows 与 Linux 的常规检查、干净 wheel 安装 smoke、真实 CATIA、真实
+  FreeCAD、双后端 STEP 和 owned-process 清理证据全部通过。
+- [ ] README/中文镜像、AGENTS、current architecture、CLI、配置、安装、测试、
+  分发、发布和 `v0.3.0` release notes 只在能力实现后同步为当前事实。
+
+Tasks：
+
+- [x] 2026-09-03：确认设计树并建立 glossary、四个 accepted ADR、target
+  architecture 和分阶段 Plan；验证边界见[阶段 0](docs/plans/autoblade-0.3.0.md)。
+- [ ] 按 [`docs/plans/autoblade-0.3.0.md`](docs/plans/autoblade-0.3.0.md) 顺序完成
+  阶段 1–5，并在每个 gate 后记录证据和更新 Current focus。
+
+## Backlog（未承诺）
+
+- 认证带类型校验 executable path 的 NativeLauncher。
+- 认证 Windows/FreeCAD 组合。
+- 评估公共 PyPI 与名称注册。
+- 评估独立 Windows EXE。
+- 评估公共第三方 CAD backend API。
+- 依据真实性能数据评估并行 CAD 调度。
+
+## Recently completed
+
+- [截至 `0.1.1` 的里程碑](docs/archive/milestones-through-0.1.1.md)
+- [`0.2.0` 内部 preview wheel](docs/archive/internal-preview-wheel-0.2.0.md)
+- [显式参数扫描 `sweep`](docs/archive/explicit-parameter-sweep.md)
+- [真实示例与内置翼型目录](docs/archive/real-example-and-airfoil-library.md)
+- [`section_params` → `blade_sections` 命名迁移](docs/blade-sections-migration.md)

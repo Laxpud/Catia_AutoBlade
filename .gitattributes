@@ -1,3 +1,3 @@
-src/catia_autoblade/resources/**/*.csv text eol=lf
-src/catia_autoblade/resources/**/*.json text eol=lf
-src/catia_autoblade/resources/**/*.toml text eol=lf
+src/autoblade/resources/**/*.csv text eol=lf
+src/autoblade/resources/**/*.json text eol=lf
+src/autoblade/resources/**/*.toml text eol=lf

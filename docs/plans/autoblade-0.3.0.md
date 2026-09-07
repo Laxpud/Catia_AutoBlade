@@ -81,12 +81,21 @@ Windows/CATIA 行为，并能在 Linux 安装、导入和执行无 CAD 规划路
 - [x] 检测旧 `catia-autoblade` distribution 与新 wheel 共存并给出先卸载旧包的
   明确迁移错误。
 
-验证状态（2026-09-03）：Linux 已运行 `bash scripts/check-linux.sh`，通过 151 项
+验证状态（2026-09-07，阶段 1 Exit gate 已通过）：
+
+- 2026-09-03，Linux 已运行 `bash scripts/check-linux.sh`，通过 151 项
 pytest、Ruff、`autoblade-0.2.0` wheel/sdist 构建、全新 CPython 3.14.4 非 editable
 安装、三个 console entry、Parser/Planner/mock 执行、资源、配置目录迁移、旧
-distribution 冲突和分发内容校验。Windows 的 `pwsh -File scripts/check.ps1` 与
-非 editable wheel smoke 尚未在 Windows 主机执行，因此阶段 1 Exit gate 尚未关闭，
-不得进入阶段 2。
+distribution 冲突和分发内容校验。
+- 2026-09-07，Win11 在本地目录
+  `%LOCALAPPDATA%\AutoBlade-checks\run-20260907-150926` 运行完整
+  `pwsh -File scripts/check.ps1`，退出码 0；CPython 3.14.7、uv 0.12.10，151 项
+  pytest、Ruff、`autoblade-0.2.0` wheel/sdist 构建、非 editable wheel smoke
+  （入口、工作区初始化、配置迁移、输入预检及 mock 建模）和分发元数据/内容校验
+  全部通过。日志与摘要保存在同一父目录的
+  `records\run-20260907-150926\`，验证通过的运行副本已清理。
+- `W:` 共享盘曾在启动器和严格路径解析处失败；同一源码复制到 Windows 本地
+  磁盘后完整检查通过。本次未执行真实 CATIA，不作为真实几何或发布候选验收证据。
 
 Exit gate：Windows 现有无真实 CATIA 检查和安装 smoke 通过；Linux 的全新环境能
 安装 wheel、导入核心、运行 help/version/Parser/Planner；版本输出、wheel/sdist

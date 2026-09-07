@@ -31,6 +31,7 @@ AutoBlade 当前通过 CATIA V5 COM Automation 生成叶片模型，并已提供
 - 开发中先运行与改动对应的测试；非简单改动交付前在 Windows 运行
   `pwsh -File scripts/check.ps1`，在 Linux 运行 `bash scripts/check-linux.sh`。
 - 默认 pytest 使用 fake/mock COM。真实 CATIA 冒烟测试只能显式人工执行，并按 `docs/testing.md` 记录环境、输入、CATPart/STEP、特征树和残留 `CNEXT` 进程。
+- 使用 win11 虚拟机进行测试、构建等验证工作时，优先将相关工作区复制到 Windows 本地 %LOCALAPPDATA%\AutoBlade-checks\ 目录；验证通过后清理副本、环境和临时产物，保留日志、摘要及需要交付的产物。
 
 ## 不可破坏的边界
 

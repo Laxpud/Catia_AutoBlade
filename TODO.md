@@ -14,7 +14,7 @@
 - 里程碑完成后，把持久事实写回技术文档，将详细记录归档到 `docs/archive/`，再从
   backlog 或用户新指令中提升下一项工作。
 
-## 当前状态（2026-09-03）
+## 当前状态（2026-09-07）
 
 - `0.2.0` 的单/多翼型、`create`/`batch`/`sweep`、CATIA Adapter、配置 schema
   `3.0.0`、sweep manifest v2 和内部 preview wheel 流程已经完成；证据见下方
@@ -22,8 +22,8 @@
 - 用户已经确认 AutoBlade 多后端设计树，并把第二个真实 CAD 后端从条件性方向
   提升为当前承诺。
 - 目标架构、ADR 和实施计划已经建立；阶段 1 的 distribution、Python namespace、
-  配置目录和 Linux 无 CAD 路径已实现并通过本机 gate，Windows 安装 gate 尚待
-  执行，FreeCAD 仍不是当前版本能力。
+  配置目录和 Linux 无 CAD 路径已实现，Linux 与 Windows 完整检查及安装 gate
+  均已通过，阶段 1 已完成；FreeCAD 仍不是当前版本能力。
 - 本机已只读验证 Flatpak `org.freecad.FreeCAD` 的 headless 版本入口返回 FreeCAD
   1.1.3；这不替代几何原型、黄金回归或发布证据。
 
@@ -40,9 +40,9 @@ STEP，最终以一个经过双平台、双 CAD 和黄金几何验证的内部 `
 - [实施计划](docs/plans/autoblade-0.3.0.md)
 - [架构决策](docs/adr/)
 
-Current focus：完成 [`0.3.0` 实施计划](docs/plans/autoblade-0.3.0.md)阶段 1
-“产品身份与平台边界”的 Windows gate。实现项和 Linux gate 已完成；在 Windows
-运行 `pwsh -File scripts/check.ps1` 并通过非 editable wheel smoke 后才能进入阶段 2。
+Current focus：进入 [`0.3.0` 实施计划](docs/plans/autoblade-0.3.0.md)阶段 2
+“FreeCAD 几何可行性闸门”，先用仓库公开输入验证最小 headless Runner 和原生
+模型机制。阶段 1 双平台 gate 已通过；阶段 2 尚未实施。
 
 Dependencies：
 
